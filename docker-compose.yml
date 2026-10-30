@@ -14,6 +14,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-db:5432/${USER_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${USER_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${USER_DB_PASSWORD}
+    depends_on:
+      user-db:
+        condition: service_healthy
 
 volumes:
   user-db-data:
