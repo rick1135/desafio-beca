@@ -1,3 +1,8 @@
 spring:
-  application:
-    name: user-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/users_db
+    username: ${USER_DB_USER}
+    password: ${USER_DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
