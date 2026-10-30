@@ -1,10 +1,12 @@
 package com.beca.userservice.adapter.in.web;
 
 import com.beca.userservice.adapter.in.web.dto.CreateUserRequest;
+import com.beca.userservice.adapter.in.web.dto.UpdateUserRequest;
 import com.beca.userservice.adapter.in.web.dto.UserResponse;
 import com.beca.userservice.application.usecase.CreateUserUseCase;
 import com.beca.userservice.application.usecase.GetUserByIdUseCase;
 import com.beca.userservice.application.usecase.GetUsersUseCase;
+import com.beca.userservice.application.usecase.UpdateUserUseCase;
 import com.beca.userservice.domain.model.User;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -19,11 +21,13 @@ public class UserController {
     private final CreateUserUseCase createUserUseCase;
     private final GetUsersUseCase getUsersUseCase;
     private final GetUserByIdUseCase getUserByIdUseCase;
+    private final UpdateUserUseCase updateUserUseCase;
 
-    public UserController(CreateUserUseCase createUserUseCase, GetUsersUseCase getUsersUseCase, GetUserByIdUseCase getUserByIdUseCase) {
+    public UserController(CreateUserUseCase createUserUseCase, GetUsersUseCase getUsersUseCase, GetUserByIdUseCase getUserByIdUseCase, UpdateUserUseCase updateUserUseCase) {
         this.createUserUseCase = createUserUseCase;
         this.getUsersUseCase = getUsersUseCase;
         this.getUserByIdUseCase = getUserByIdUseCase;
+        this.updateUserUseCase = updateUserUseCase;
     }
 
     @PostMapping
@@ -57,6 +61,17 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         User user = getUserByIdUseCase.getUserById(id);
+        return ResponseEntity.ok(toResponse(user));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponse> update(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
+        User user = updateUserUseCase.update(
+                id,
+                request.name(),
+                request.email()
+        );
+
         return ResponseEntity.ok(toResponse(user));
     }
 
