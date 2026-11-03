@@ -29,5 +29,22 @@ services:
       user-db:
         condition: service_healthy
 
+  transaction-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${TRANSACTION_DB_NAME}
+      POSTGRES_USER: ${TRANSACTION_DB_USER}
+      POSTGRES_PASSWORD: ${TRANSACTION_DB_PASSWORD}
+    ports:
+      - "${TRANSACTION_DB_PORT}:5432"
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   user-db-data:
+  transaction-db-data:
