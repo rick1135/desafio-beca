@@ -30,7 +30,7 @@ public class DeleteUserServiceTest {
     @DisplayName("deve excluir usuário quando ID existir")
     void testDelete_WhenUserExists_ShouldDeleteUser(){
         //given
-        User user = new User(1L, "Ana", "ana@example.com");
+        User user = new User(1L, "Ana", "12345678909", "ana@example.com", "encoded-password");
         given(repository.findById(1L)).willReturn(Optional.of(user));
         //when
         assertDoesNotThrow(() -> service.delete(1L));

@@ -27,8 +27,8 @@ public class GetUsersServiceTest {
     @DisplayName("deve retornar os usuários cadastrados")
     void testGestUsers_WhenUsersExist_ShouldReturnUsers(){
         //given
-        User ana = new User(1L, "Ana", "ana@example.com");
-        User joao = new User(2L, "João", "joao@example.com");
+        User ana = new User(1L, "Ana", "12345678909", "ana@example.com", "encoded-password");
+        User joao = new User(2L, "João", "98765432100", "joao@example.com", "encoded-password");
         given(repository.findAll()).willReturn(List.of(ana, joao));
         //when
         List<User> res = service.getUsers();

@@ -20,7 +20,9 @@ public class UpdateUserService implements UpdateUserUseCase{
         User updatedUser = new User(
                 existingUser.getId(),
                 name,
-                email
+                existingUser.getCpf(),
+                email,
+                existingUser.getPasswordHash()
         );
 
         return repository.save(updatedUser);

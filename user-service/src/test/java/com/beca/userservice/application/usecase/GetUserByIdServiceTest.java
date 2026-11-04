@@ -29,7 +29,7 @@ public class GetUserByIdServiceTest {
     @DisplayName("deve retornar o usuário quando ID existir")
     void testGetUserById_WhenUserExist_ShouldReturnUser() {
         //given
-        User user = new User(1L, "Ana", "ana@example.com");
+        User user = new User(1L, "Ana", "12345678909", "ana@example.com", "encoded-password");
         given(repository.findById(1L)).willReturn(Optional.of(user));
         //when
         User res =  service.getUserById(1L);

@@ -1,6 +1,7 @@
 package com.beca.userservice.adapter.in.web.exception;
 
 import com.beca.userservice.adapter.in.web.dto.ApiErrorResponse;
+import com.beca.userservice.application.exception.DuplicateEmailException;
 import com.beca.userservice.application.exception.UserNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,5 +44,16 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateEmail(DuplicateEmailException ex) {
+        ApiErrorResponse body = new ApiErrorResponse(
+                409,
+                "Conflict",
+                ex.getMessage(),
+                Map.of()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 }

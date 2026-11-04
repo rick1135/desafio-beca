@@ -31,8 +31,8 @@ public class UpdateUserServiceTest {
     @DisplayName("deve atualizar os dados mantendo o ID do usuário")
     void testUpdate_WhenUserExists_ShouldReturnUpdatedUser() {
         //given
-        User oldUser = new User(1L, "Ana", "ana@example.com");
-        User newUser = new User(1L, "Ana Souza", "ana.souza@example.com");
+        User oldUser = new User(1L, "Ana", "12345678909", "ana@example.com", "encoded-password");
+        User newUser = new User(1L, "Ana Souza", "12345678909", "ana.souza@example.com", "encoded-password");
         given(repository.findById(1L)).willReturn(Optional.of(oldUser));
         given(repository.save(any(User.class))).willReturn(newUser);
         //when
@@ -43,6 +43,8 @@ public class UpdateUserServiceTest {
                 Long.valueOf(1L).equals(user.getId())
                         && "Ana Souza".equals(user.getName())
                         && "ana.souza@example.com".equals(user.getEmail())
+                        && "12345678909".equals(user.getCpf())
+                        && "encoded-password".equals(user.getPasswordHash())
         ));
         assertEquals(1L, res.getId());
         assertEquals("Ana Souza", res.getName());
