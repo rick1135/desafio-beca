@@ -58,6 +58,11 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
         userJpaRepository.deleteById(id);
     }
 
+    @Override
+    public boolean existsByEmailAndIdNot(String email, Long id){
+        return userJpaRepository.existsByEmailAndIdNot(email, id);
+    }
+
     private User toDomain(UserEntity entity) {
         return new User(entity.getId(), entity.getName(), entity.getCpf(), entity.getEmail(), entity.getPasswordHash());
     }

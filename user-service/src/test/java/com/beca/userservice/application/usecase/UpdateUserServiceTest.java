@@ -3,6 +3,7 @@ package com.beca.userservice.application.usecase;
 import com.beca.userservice.application.exception.UserNotFoundException;
 import com.beca.userservice.domain.model.User;
 import com.beca.userservice.domain.port.UserRepositoryPort;
+import com.beca.userservice.application.exception.DuplicateEmailException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +60,23 @@ public class UpdateUserServiceTest {
         //when then
         assertThrows(UserNotFoundException.class, ()->service.update(99L, "Ana Souza", "ana.souza@example.com"));
         then(repository).should().findById(99L);
+        then(repository).should(never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("deve lançar DuplicateEmailException e não salvar quando email já pertencer a outro usuário")
+    void testUpdate_WhenEmailBelongsToAnotherUser_ShouldThrowException() {
+        // given
+        User oldUser = new User(1L, "Ana", "12345678909", "ana@example.com", "encoded-password");
+        given(repository.findById(1L)).willReturn(Optional.of(oldUser));
+        given(repository.existsByEmailAndIdNot("outro@example.com", 1L)).willReturn(true);
+
+        // when & then
+        assertThrows(DuplicateEmailException.class, () ->
+                service.update(1L, "Ana", "outro@example.com")
+        );
+        then(repository).should().findById(1L);
+        then(repository).should().existsByEmailAndIdNot("outro@example.com", 1L);
         then(repository).should(never()).save(any(User.class));
     }
 }
