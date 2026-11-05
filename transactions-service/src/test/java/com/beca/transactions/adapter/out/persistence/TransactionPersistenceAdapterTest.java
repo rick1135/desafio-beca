@@ -135,11 +135,11 @@ public class TransactionPersistenceAdapterTest {
     }
 
     @Test
-    void devePersistirValorComZerosAdicionaisSemArredondamento() {
+    void devePersistirValorComDuasCasasDecimais() {
         Transaction salva = adapter.save(new Transaction(
-                null, TransactionType.DEPOSIT, new BigDecimal("10.120"),
+                null, TransactionType.DEPOSIT, new BigDecimal("10.12"),
                 null, 1L, null, TransactionStatus.APPROVED,
-                null, null, "Depósito com zero adicional",
+                null, null, "Depósito com duas casas decimais",
                 Instant.parse("2026-11-04T12:00:00Z")
         ));
 

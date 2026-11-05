@@ -50,7 +50,7 @@ public class Transaction {
         if (creationDate == null) {
             throw new IllegalArgumentException("Data da transação é obrigatória");
         }
-        if (amount.stripTrailingZeros().scale() > 2) {
+        if (amount.scale() > 2) {
             throw new IllegalArgumentException("Valor da transação deve ter no máximo duas casas decimais");
         }
         if (amount.setScale(2).precision() > 19) {
