@@ -73,6 +73,10 @@ public class ImportUsersService implements ImportUsersUseCase {
                         registro, "FALHA", null, "EMAIL_DUPLICADO"
                 ));
             }
+            catch (Exception e){
+                String motivo = (e.getMessage()!=null && !e.getMessage().isBlank()) ? e.getMessage() : "Erro inesperado ao processar registro";
+                resultados.add(new ImportUserResult(registro, "FALHA", null, motivo));
+            }
         }
         return new ImportUsersResult(
                 rows.size(), imports, rows.size()-imports, resultados

@@ -77,6 +77,38 @@ class ImportUsersServiceTest {
         verifyNoMoreInteractions(createUserUseCase);
     }
 
+    @Test
+    @DisplayName("não deve derrubar o lote quando ocorrer erro inesperado em uma linha")
+    void continuesImportWhenUnexpectedExceptionOccursOnRow() {
+        Validator validator = validatorFactory.getValidator();
+        ImportUsersService service = new ImportUsersService(createUserUseCase, validator);
+
+        List<ImportUserRow> rows = List.of(
+                row(1, "Ana", "12345678909", "ana@example.com", "Senha123"),
+                row(2, "Carlos", "98765432100", "carlos@example.com", "Senha123"),
+                row(3, "Bia", "11122233344", "bia@example.com", "Senha123")
+        );
+
+        when(createUserUseCase.create("Ana", "12345678909", "ana@example.com", "Senha123"))
+                .thenReturn(new User(1L, "Ana", "12345678909", "ana@example.com", "hash"));
+
+        doThrow(new RuntimeException("Falha de conexão com banco de dados"))
+                .when(createUserUseCase)
+                .create("Carlos", "98765432100", "carlos@example.com", "Senha123");
+
+        when(createUserUseCase.create("Bia", "11122233344", "bia@example.com", "Senha123"))
+                .thenReturn(new User(2L, "Bia", "11122233344", "bia@example.com", "hash"));
+
+        ImportUsersResult result = service.importUsers(rows);
+
+        assertEquals(3, result.total());
+        assertEquals(2, result.importados());
+        assertEquals(1, result.falhas());
+        assertEquals("Falha de conexão com banco de dados", result.resultados().get(1).reason());
+        assertEquals("FALHA", result.resultados().get(1).status());
+        assertEquals("IMPORTADO", result.resultados().get(2).status());
+    }
+
     private ImportUserRow row(int registro, String name, String cpf, String email, String password) {
         return new ImportUserRow(registro, List.of(name, cpf, email, password));
     }
