@@ -45,6 +45,20 @@ services:
       timeout: 5s
       retries: 10
 
+  transactions-service:
+    build:
+      context: ./transactions-service
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://transaction-db:5432/${TRANSACTION_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${TRANSACTION_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${TRANSACTION_DB_PASSWORD}
+    depends_on:
+      transaction-db:
+        condition: service_healthy
+
 volumes:
   user-db-data:
   transaction-db-data:
