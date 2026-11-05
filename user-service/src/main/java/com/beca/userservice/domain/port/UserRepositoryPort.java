@@ -14,5 +14,7 @@ public interface UserRepositoryPort {
 
     boolean existsByEmail(String email);
 
+    boolean existsByEmailAndIdNot(String email, Long id);
+
     void deleteById(Long id);
 }

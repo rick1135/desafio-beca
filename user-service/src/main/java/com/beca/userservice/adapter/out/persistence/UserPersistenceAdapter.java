@@ -1,7 +1,10 @@
 package com.beca.userservice.adapter.out.persistence;
 
+import com.beca.userservice.application.exception.DuplicateEmailException;
 import com.beca.userservice.domain.model.User;
 import com.beca.userservice.domain.port.UserRepositoryPort;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,9 +20,19 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
 
     @Override
     public User save(User user) {
-        UserEntity entity = toEntity(user);
-        UserEntity savedEntity = userJpaRepository.save(entity);
-        return toDomain(savedEntity);
+        try{
+            UserEntity saved = userJpaRepository.saveAndFlush(toEntity(user));
+            return toDomain(saved);
+        } catch (DataIntegrityViolationException ex){
+            Throwable cause = ex;
+            while (cause!=null){
+                if(cause instanceof ConstraintViolationException violation && "uk_users_email".equals(violation.getConstraintName())){
+                    throw new DuplicateEmailException();
+                }
+                cause = cause.getCause();
+            }
+            throw  ex;
+        }
     }
 
     @Override
@@ -45,11 +58,16 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
         userJpaRepository.deleteById(id);
     }
 
+    @Override
+    public boolean existsByEmailAndIdNot(String email, Long id){
+        return userJpaRepository.existsByEmailAndIdNot(email, id);
+    }
+
     private User toDomain(UserEntity entity) {
-        return new User(entity.getId(), entity.getName(), entity.getEmail());
+        return new User(entity.getId(), entity.getName(), entity.getCpf(), entity.getEmail(), entity.getPasswordHash());
     }
 
     private UserEntity toEntity(User user){
-        return new UserEntity(user.getId(), user.getName(), user.getEmail());
+        return new UserEntity(user.getId(), user.getName(), user.getCpf(), user.getEmail(), user.getPasswordHash());
     }
 }
