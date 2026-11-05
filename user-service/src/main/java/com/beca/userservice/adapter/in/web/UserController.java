@@ -113,6 +113,7 @@ public class UserController {
         CSVFormat format = CSVFormat.RFC4180.builder()
                 .setHeader()
                 .setSkipHeaderRecord(true)
+                .setIgnoreEmptyLines(true)
                 .get();
 
         try (Reader reader = new InputStreamReader(BOMInputStream.builder().setInputStream(file.getInputStream()).get(),

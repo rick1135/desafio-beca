@@ -140,6 +140,28 @@ class UserControllerUploadTest {
         verifyNoInteractions(importUsersUseCase, createUserUseCase);
     }
 
+    @Test
+    @DisplayName("deve ignorar linhas em branco no arquivo CSV")
+    void ignoresEmptyLinesInCsv() {
+        String csvWithEmptyLines = """
+                    nome,cpf,email,senha
+
+                    Ana Teste,12345678909,ana@example.com,Senha123
+
+                    """;
+
+        when(importUsersUseCase.importUsers(anyList())).thenReturn(new ImportUsersResult(
+                1, 1, 0, java.util.List.of(
+                new ImportUserResult(1, "IMPORTADO", 1L, null)
+        )
+        ));
+
+        ResponseEntity<?> response = controller().upload(csvFile(csvWithEmptyLines));
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(importUsersUseCase).importUsers(argThat(rows -> rows.size() == 1));
+    }
+
     private UserController controller() {
         return new UserController(
                 createUserUseCase,
