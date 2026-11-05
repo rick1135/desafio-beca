@@ -2,6 +2,7 @@ package com.beca.userservice.application.usecase;
 
 import com.beca.userservice.domain.model.User;
 import com.beca.userservice.domain.port.UserRepositoryPort;
+import com.beca.userservice.application.exception.DuplicateEmailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,8 @@ public class CreateUserServiceTest {
         assertThrows(DuplicateEmailException.class, () ->
                 service.create("Ana", "12345678909", rawEmail, "password")
         );
+        then(repository).should().existsByEmail("ana@example.com");
+        then(repository).shouldHaveNoMoreInteractions();
         then(repository).shouldHaveNoMoreInteractions();
     }
 }

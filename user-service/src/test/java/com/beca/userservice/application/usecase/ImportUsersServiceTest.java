@@ -9,6 +9,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.DisplayName;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -104,7 +105,7 @@ class ImportUsersServiceTest {
         assertEquals(3, result.total());
         assertEquals(2, result.importados());
         assertEquals(1, result.falhas());
-        assertEquals("Falha de conexão com banco de dados", result.resultados().get(1).reason());
+        assertEquals("Erro inesperado ao processar registro", result.resultados().get(1).reason());
         assertEquals("FALHA", result.resultados().get(1).status());
         assertEquals("IMPORTADO", result.resultados().get(2).status());
     }

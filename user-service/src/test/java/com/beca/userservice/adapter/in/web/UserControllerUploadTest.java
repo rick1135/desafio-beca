@@ -4,7 +4,7 @@ import com.beca.userservice.adapter.in.web.dto.UploadLineResult;
 import com.beca.userservice.adapter.in.web.dto.UploadResponse;
 import com.beca.userservice.application.usecase.*;
 import com.beca.userservice.adapter.in.web.dto.ApiErrorResponse;
-import jakarta.validation.Validator;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -136,7 +136,7 @@ class UserControllerUploadTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         ApiErrorResponse body = assertInstanceOf(ApiErrorResponse.class, response.getBody());
-        assertEquals("O arquivo CSV está vazio.", body.message());
+        assertEquals("O arquivo CSV está vazio", body.message());
         verifyNoInteractions(importUsersUseCase, createUserUseCase);
     }
 

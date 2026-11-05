@@ -6,6 +6,9 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -15,6 +18,7 @@ import java.util.stream.Collectors;
 public class ImportUsersService implements ImportUsersUseCase {
     private final CreateUserUseCase createUserUseCase;
     private final Validator validator;
+    private static final Logger log = LoggerFactory.getLogger(ImportUsersService.class);
 
     public ImportUsersService(CreateUserUseCase createUserUseCase, Validator validator) {
         this.createUserUseCase = createUserUseCase;
@@ -73,9 +77,11 @@ public class ImportUsersService implements ImportUsersUseCase {
                         registro, "FALHA", null, "EMAIL_DUPLICADO"
                 ));
             }
-            catch (Exception e){
-                String motivo = (e.getMessage()!=null && !e.getMessage().isBlank()) ? e.getMessage() : "Erro inesperado ao processar registro";
-                resultados.add(new ImportUserResult(registro, "FALHA", null, motivo));
+            catch (Exception e) {
+                log.error("Falha inesperada ao importar usuário na linha {}", registro, e);
+                resultados.add(new ImportUserResult(
+                        registro, "FALHA", null, "Erro inesperado ao processar registro"
+                ));
             }
         }
         return new ImportUsersResult(
