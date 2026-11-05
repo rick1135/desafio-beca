@@ -3,6 +3,7 @@ package com.beca.transactions.adapter.in.web.exception;
 import com.beca.transactions.adapter.in.web.dto.CreateTransactionRequest;
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
 import com.beca.transactions.application.exception.TransactionNotFoundException;
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,37 @@ public class GlobalExceptionHandlerTest {
                                 org.hamcrest.Matchers.containsString("segredo"))));
     }
 
+    @Test
+    void devolve400ParaRegraDeNegocioInvalida() throws Exception {
+        mvc.perform(get("/test/invalid-transaction"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message")
+                        .value("Não é possível realizar transferência para si mesmo"))
+                .andExpect(jsonPath("$.details").isEmpty());
+    }
+
+    @Test
+    void devolve400ParaParametroDeRotaInvalido() throws Exception {
+        mvc.perform(get("/test/by-id/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.details.id")
+                        .value("Valor incompatível com o tipo esperado"));
+    }
+
+    @Test
+    void devolve405ParaMetodoHttpNaoPermitido() throws Exception {
+        mvc.perform(post("/test/by-id/123"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.error").value("Method Not Allowed"))
+                .andExpect(header().string("Allow",
+                        org.hamcrest.Matchers.containsString("GET")));
+    }
+
     @RestController
     static class TestController {
         @PostMapping("/test/transactions")
@@ -108,6 +140,17 @@ public class GlobalExceptionHandlerTest {
         @GetMapping("/test/unexpected")
         void unexpected() {
             throw new IllegalStateException("segredo interno");
+        }
+
+        @GetMapping("/test/invalid-transaction")
+        void invalidTransaction() {
+            throw new InvalidTransactionException(
+                    "Não é possível realizar transferência para si mesmo"
+            );
+        }
+
+        @GetMapping("/test/by-id/{id}")
+        void byId(@PathVariable Long id) {
         }
     }
 }

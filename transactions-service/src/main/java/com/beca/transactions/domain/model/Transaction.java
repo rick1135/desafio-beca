@@ -1,5 +1,7 @@
 package com.beca.transactions.domain.model;
 
+import com.beca.transactions.domain.exception.InvalidTransactionException;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -22,52 +24,52 @@ public class Transaction {
                        String description, Instant creationDate) {
         this.id = id;
         if(type==TransactionType.PURCHASE && category==null) {
-            throw new IllegalArgumentException("Categoria não pode ser nula");
+            throw new InvalidTransactionException("Categoria não pode ser nula");
         }
-        if(type==null) throw new IllegalArgumentException("Tipo da transação é obrigatório");
+        if(type==null) throw new InvalidTransactionException("Tipo da transação é obrigatório");
         if(amount==null || amount.signum()<=0){
-            throw new IllegalArgumentException("Valor da transação deve ser maior que zero");
+            throw new InvalidTransactionException("Valor da transação deve ser maior que zero");
         }
         if(type==TransactionType.PURCHASE && category.isBlank()){
-            throw new IllegalArgumentException("Categoria é obrigatório para compras");
+            throw new InvalidTransactionException("Categoria é obrigatório para compras");
         }
-        if(originUserId==null) throw new IllegalArgumentException(
+        if(originUserId==null) throw new InvalidTransactionException(
                 "Usuário de origem é obrigatório"
         );
-        if(type==TransactionType.TRANSFER && destinationUserId==null) throw new IllegalArgumentException(
+        if(type==TransactionType.TRANSFER && destinationUserId==null) throw new InvalidTransactionException(
                 "Usuário de destino é obrigatório para transferências"
         );
-        if(status==null) throw new IllegalArgumentException("Status da transação não pode ser null");
-        if(status==TransactionStatus.REJECTED && (rejectionReason==null|| rejectionReason.isBlank())) throw new IllegalArgumentException(
+        if(status==null) throw new InvalidTransactionException("Status da transação não pode ser null");
+        if(status==TransactionStatus.REJECTED && (rejectionReason==null|| rejectionReason.isBlank())) throw new InvalidTransactionException(
                 "O motivo da transação ter sido rejeitada é obrigatório"
         );
-        if(type==TransactionType.TRANSFER && originUserId.equals(destinationUserId)) throw new IllegalArgumentException(
+        if(type==TransactionType.TRANSFER && originUserId.equals(destinationUserId)) throw new InvalidTransactionException(
                 "Não é possível realizar transferência para si mesmo"
         );
         if (description == null || description.isBlank()) {
-            throw new IllegalArgumentException("Descrição da transação é obrigatória");
+            throw new InvalidTransactionException("Descrição da transação é obrigatória");
         }
         if (creationDate == null) {
-            throw new IllegalArgumentException("Data da transação é obrigatória");
+            throw new InvalidTransactionException("Data da transação é obrigatória");
         }
         if (amount.scale() > 2) {
-            throw new IllegalArgumentException("Valor da transação deve ter no máximo duas casas decimais");
+            throw new InvalidTransactionException("Valor da transação deve ter no máximo duas casas decimais");
         }
         if (amount.setScale(2).precision() > 19) {
-            throw new IllegalArgumentException("Valor da transação excede o limite permitido");
+            throw new InvalidTransactionException("Valor da transação excede o limite permitido");
         }
         if (description.length() > 255) {
-            throw new IllegalArgumentException(
+            throw new InvalidTransactionException(
                     "Descrição deve ter no máximo 255 caracteres"
             );
         }
         if (category != null && category.length() > 255) {
-            throw new IllegalArgumentException(
+            throw new InvalidTransactionException(
                     "Categoria deve ter no máximo 255 caracteres"
             );
         }
         if (rejectionReason != null && rejectionReason.length() > 255) {
-            throw new IllegalArgumentException(
+            throw new InvalidTransactionException(
                     "Motivo da rejeição deve ter no máximo 255 caracteres"
             );
         }
