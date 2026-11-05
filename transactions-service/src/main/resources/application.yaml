@@ -1,12 +1,14 @@
 spring:
+  application:
+    name: transactions-service
   datasource:
-    url: jdbc:postgresql://localhost:5434/transactions_db
+    url: jdbc:postgresql://localhost:${TRANSACTION_DB_PORT}/${TRANSACTION_DB_NAME}
     username: ${TRANSACTION_DB_USER}
     password: ${TRANSACTION_DB_PASSWORD}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
 
 server:
   port: 8081
