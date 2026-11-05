@@ -3,6 +3,7 @@ package com.beca.userservice.adapter.in.web;
 import com.beca.userservice.adapter.in.web.dto.UploadLineResult;
 import com.beca.userservice.adapter.in.web.dto.UploadResponse;
 import com.beca.userservice.application.usecase.*;
+import com.beca.userservice.adapter.in.web.dto.ApiErrorResponse;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,16 +87,19 @@ class UserControllerUploadTest {
     }
 
     @Test
+    @DisplayName("deve retornar ApiErrorResponse quando CSV for malformado")
     void malformedCsvDoesNotAttemptAnyRegistration() {
         String csv = """
-                nome,cpf,email,senha
-                Ana Teste,12345678909,ana@example.com,Senha123
-                "Carla Teste,98765432100,carla@example.com,Senha789
-                """;
+                    nome,cpf,email,senha
+                    Ana Teste,12345678909,ana@example.com,Senha123
+                    "Carla Teste,98765432100,carla@example.com,Senha789
+                    """;
 
         ResponseEntity<?> response = controller().upload(csvFile(csv));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        ApiErrorResponse body = assertInstanceOf(ApiErrorResponse.class, response.getBody());
+        assertEquals(400, body.status());
         verifyNoInteractions(importUsersUseCase, createUserUseCase);
     }
 
@@ -119,6 +123,21 @@ class UserControllerUploadTest {
                 rows.size() == 1
                         && rows.get(0).columns().get(0).equals("Carlos Teste")
         ));
+    }
+
+    @Test
+    @DisplayName("deve retornar ApiErrorResponse quando o arquivo CSV estiver vazio")
+    void emptyFileReturnsApiErrorResponse() {
+        MockMultipartFile emptyFile = new MockMultipartFile(
+                "file", "empty.csv", "text/csv", new byte[0]
+        );
+
+        ResponseEntity<?> response = controller().upload(emptyFile);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        ApiErrorResponse body = assertInstanceOf(ApiErrorResponse.class, response.getBody());
+        assertEquals("O arquivo CSV está vazio.", body.message());
+        verifyNoInteractions(importUsersUseCase, createUserUseCase);
     }
 
     private UserController controller() {

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/users")
@@ -100,7 +101,14 @@ public class UserController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
-        if(file.isEmpty()) return ResponseEntity.badRequest().body("O arquivo CSV está vazio");
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiErrorResponse(
+                    400,
+                    "Bad Request",
+                    "O arquivo CSV está vazio",
+                    Map.of("file", "O arquivo enviado não pode estar vazio")
+            ));
+        }
 
         CSVFormat format = CSVFormat.RFC4180.builder()
                 .setHeader()
@@ -115,8 +123,13 @@ public class UserController {
                     .map(name->name!=null ? name.trim().toLowerCase() : "")
                     .toList();
 
-            if(!actualHeader.equals(expectedHeader)){
-                return ResponseEntity.badRequest().body("Cabeçalho inválido. Esperado: nome,cpf,email,senha");
+            if (!actualHeader.equals(expectedHeader)) {
+                return ResponseEntity.badRequest().body(new ApiErrorResponse(
+                        400,
+                        "Bad Request",
+                        "Cabeçalho inválido. Esperado: nome,cpf,email,senha",
+                        Map.of("header", "Esperado: nome,cpf,email,senha")
+                ));
             }
 
             List<CSVRecord> records = parser.getRecords();
@@ -145,11 +158,20 @@ public class UserController {
                     res.total(), res.importados(), res.falhas(), resultados
             ));
         }  catch (IOException|UncheckedIOException e) {
-            return ResponseEntity.badRequest()
-                    .body("Não foi possivel ler o CSV");
+            return ResponseEntity.badRequest().body(new ApiErrorResponse(
+                    400,
+                    "Bad Request",
+                    "Não foi possível ler o arquivo CSV.",
+                    Map.of("file", "Erro ao processar leitura do arquivo")
+            ));
         }
         catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body("Cabeçalho do CSV é inválido");
+            return ResponseEntity.badRequest().body(new ApiErrorResponse(
+                    400,
+                    "Bad Request",
+                    "Cabeçalho do CSV é inválido.",
+                    Map.of("header", "Formato de cabeçalho inválido")
+            ));
         }
     }
 
