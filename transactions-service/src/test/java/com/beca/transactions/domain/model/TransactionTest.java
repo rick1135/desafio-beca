@@ -4,10 +4,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TransactionTest {
+    private static final Instant CREATION_DATE = Instant.parse("2026-11-04T12:00:00Z");
     @Test
     @DisplayName("deve rejeitar compra sem categoria")
     void testPurchase_WhenCategoryIsMissing_ShouldThrowException() {
@@ -16,8 +18,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 type, amount, null, 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -28,8 +31,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 null, amount, null,  1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -40,8 +44,9 @@ public class TransactionTest {
         TransactionType type = TransactionType.DEPOSIT;
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 type, null, null,  1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -52,12 +57,14 @@ public class TransactionTest {
         TransactionType type = TransactionType.DEPOSIT;
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 type, BigDecimal.ZERO, null, 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 type, new BigDecimal("-5.00"), null, 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -69,8 +76,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 type, amount, null, null, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -82,6 +90,7 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, ()-> new Transaction(
+                null,
                 TransactionType.TRANSFER,
                 amount,
                 null,
@@ -89,7 +98,7 @@ public class TransactionTest {
                 null,
                 TransactionStatus.APPROVED,
                 null,
-                null
+                null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -102,9 +111,10 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when
         Transaction transaction = new Transaction(
+                null,
                 TransactionType.TRANSFER, amount,
                 null, originId, destId,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         );
         //then
         assertEquals(originId, transaction.getOriginUserId());
@@ -118,8 +128,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when
         Transaction transaction = new Transaction(
+                null,
                 TransactionType.DEPOSIT, amount, null,
-                1L, null, TransactionStatus.APPROVED, null, null
+                1L, null, TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         );
         //then
         assertEquals(TransactionType.DEPOSIT, transaction.getType());
@@ -127,6 +138,9 @@ public class TransactionTest {
         assertEquals(1L, transaction.getOriginUserId());
         assertNull(transaction.getDestinationUserId());
         assertEquals(TransactionStatus.APPROVED, transaction.getStatus());
+        assertNull(transaction.getId());
+        assertEquals("Descrição de teste", transaction.getDescription());
+        assertEquals(CREATION_DATE, transaction.getCreationDate());
     }
 
     @Test
@@ -136,9 +150,10 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when
         Transaction transaction = new Transaction(
+                null,
                 TransactionType.PURCHASE, amount,
                 "Alimentação", 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         );
         //then
         assertEquals("Alimentação",  transaction.getCategory());
@@ -151,14 +166,16 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, ()->new Transaction(
+                null,
                 TransactionType.PURCHASE, amount,
                 "", 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
         ));
         assertThrows(IllegalArgumentException.class, () -> new Transaction(
+                null,
                 TransactionType.PURCHASE, amount,
                 "   ", 1L, null,
-                TransactionStatus.APPROVED, null, null
+                TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
                 )
         );
     }
@@ -170,8 +187,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, () -> new Transaction(
+                null,
                 TransactionType.TRANSFER, amount, null,
-                1L, 1L, TransactionStatus.APPROVED, null, null
+                1L, 1L, TransactionStatus.APPROVED, null, null, "Descrição de teste", CREATION_DATE
                 )
         );
     }
@@ -183,8 +201,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, () -> new Transaction(
+                null,
                 TransactionType.WITHDRAW, amount, null,
-                1L, null, TransactionStatus.REJECTED, null, null
+                1L, null, TransactionStatus.REJECTED, null, null, "Descrição de teste", CREATION_DATE
                 )
         );
     }
@@ -196,9 +215,10 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when
         Transaction transaction = new Transaction(
+                null,
                 TransactionType.WITHDRAW, amount, null,
                 1L, null, TransactionStatus.REJECTED,
-                "Saldo insuficiente", null
+                "Saldo insuficiente", null, "Descrição de teste", CREATION_DATE
         );
         //then
         assertEquals(TransactionStatus.REJECTED, transaction.getStatus());
@@ -213,8 +233,9 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when
         Transaction correction = new Transaction(
+                null,
                 TransactionType.DEPOSIT, amount, null,
-                1L, null, TransactionStatus.APPROVED, null, originalId
+                1L, null, TransactionStatus.APPROVED, null, originalId, "Descrição de teste", CREATION_DATE
         );
 
         //then
@@ -228,9 +249,10 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, () -> new Transaction(
+                null,
                 TransactionType.DEPOSIT,
                 amount, null, 1L, null,
-                null, null, null
+                null, null, null, "Descrição de teste", CREATION_DATE
         ));
     }
 
@@ -241,8 +263,122 @@ public class TransactionTest {
         BigDecimal amount = new BigDecimal("25.00");
         //when then
         assertThrows(IllegalArgumentException.class, () -> new Transaction(
+                null,
                 TransactionType.WITHDRAW, amount, null, 1L,
-                null, TransactionStatus.REJECTED, "   ", null
+                null, TransactionStatus.REJECTED, "   ", null, "Descrição de teste", CREATION_DATE
         ));
+    }
+
+    @Test
+    @DisplayName("rejeita transação sem descrição ou com descrição em branco")
+    void testTransaction_WhenDescriptionIsMissing_ShouldThrowException() {
+        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.00"), null, CREATION_DATE));
+        assertEquals("Descrição da transação é obrigatória", missing.getMessage());
+
+        IllegalArgumentException blank = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.00"), "   ", CREATION_DATE));
+        assertEquals("Descrição da transação é obrigatória", blank.getMessage());
+    }
+
+    @Test
+    @DisplayName("rejeita transação sem data de criação")
+    void testTransaction_WhenCreationDateIsMissing_ShouldThrowException() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.00"), "Depósito de teste", null));
+        assertEquals("Data da transação é obrigatória", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("rejeita valor com mais de duas casas decimais")
+    void testTransaction_WhenAmountHasExcessDecimalPlaces_ShouldThrowException() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.123"), "Depósito de teste", CREATION_DATE));
+        assertEquals("Valor da transação deve ter no máximo duas casas decimais", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("rejeita valor maior que a precisão da coluna")
+    void testTransaction_WhenAmountExceedsPrecision_ShouldThrowException() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("100000000000000000.00"), "Depósito de teste", CREATION_DATE));
+        assertEquals("Valor da transação excede o limite permitido", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("aceita zero excedente após a segunda casa decimal sem arredondar")
+    void testTransaction_WhenAmountHasTrailingZero_ShouldPreserveAmount() {
+        BigDecimal amount = new BigDecimal("10.120");
+
+        Transaction transaction = createDeposit(amount, "Depósito de teste", CREATION_DATE);
+
+        assertEquals(amount, transaction.getAmount());
+        assertEquals(3, transaction.getAmount().scale());
+    }
+
+    @Test
+    void deveAceitarDescricaoNoLimiteDoBanco() {
+        String descricao = "a".repeat(255);
+        Transaction transaction = createDeposit(new BigDecimal("10.00"), descricao, CREATION_DATE);
+        assertEquals(descricao, transaction.getDescription());
+    }
+
+    @Test
+    void deveRejeitarDescricaoAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.00"), "a".repeat(256), CREATION_DATE));
+        assertEquals("Descrição deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
+    @Test
+    void deveAceitarCategoriaNoLimiteDoBanco() {
+        String categoria = "a".repeat(255);
+        Transaction transaction = new Transaction(
+                null, TransactionType.PURCHASE, new BigDecimal("10.00"), categoria,
+                1L, null, TransactionStatus.APPROVED, null, null,
+                "Compra de teste", CREATION_DATE
+        );
+        assertEquals(categoria, transaction.getCategory());
+    }
+
+    @Test
+    void deveRejeitarCategoriaAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> new Transaction(
+                        null, TransactionType.PURCHASE, new BigDecimal("10.00"), "a".repeat(256),
+                        1L, null, TransactionStatus.APPROVED, null, null,
+                        "Compra de teste", CREATION_DATE
+                ));
+        assertEquals("Categoria deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
+    @Test
+    void deveAceitarMotivoDeRejeicaoNoLimiteDoBanco() {
+        String motivo = "a".repeat(255);
+        Transaction transaction = new Transaction(
+                null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
+                1L, null, TransactionStatus.REJECTED, motivo, null,
+                "Retirada de teste", CREATION_DATE
+        );
+        assertEquals(motivo, transaction.getRejectionReason());
+    }
+
+    @Test
+    void deveRejeitarMotivoDeRejeicaoAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> new Transaction(
+                        null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
+                        1L, null, TransactionStatus.REJECTED, "a".repeat(256), null,
+                        "Retirada de teste", CREATION_DATE
+                ));
+        assertEquals("Motivo da rejeição deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
+    private Transaction createDeposit(BigDecimal amount, String description, Instant creationDate) {
+        return new Transaction(
+                null, TransactionType.DEPOSIT, amount, null,
+                1L, null, TransactionStatus.APPROVED, null, null,
+                description, creationDate
+        );
     }
 }

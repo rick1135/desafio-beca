@@ -1,8 +1,10 @@
 package com.beca.transactions.domain.model;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 public class Transaction {
+    private final Long id;
     private final TransactionType type;
     private final BigDecimal amount;
     private final String category;
@@ -11,10 +13,14 @@ public class Transaction {
     private final TransactionStatus status;
     private final String rejectionReason;
     private final Long originalTransactionId;
+    private final String description;
+    private final Instant creationDate;
 
-    public Transaction(TransactionType type, BigDecimal amount, String category,
+    public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
                        Long originUserId, Long destinationUserId, TransactionStatus status,
-                       String rejectionReason, Long originalTransactionId) {
+                       String rejectionReason, Long originalTransactionId,
+                       String description, Instant creationDate) {
+        this.id = id;
         if(type==TransactionType.PURCHASE && category==null) {
             throw new IllegalArgumentException("Categoria não pode ser nula");
         }
@@ -38,6 +44,33 @@ public class Transaction {
         if(type==TransactionType.TRANSFER && originUserId.equals(destinationUserId)) throw new IllegalArgumentException(
                 "Não é possível realizar transferência para si mesmo"
         );
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Descrição da transação é obrigatória");
+        }
+        if (creationDate == null) {
+            throw new IllegalArgumentException("Data da transação é obrigatória");
+        }
+        if (amount.stripTrailingZeros().scale() > 2) {
+            throw new IllegalArgumentException("Valor da transação deve ter no máximo duas casas decimais");
+        }
+        if (amount.setScale(2).precision() > 19) {
+            throw new IllegalArgumentException("Valor da transação excede o limite permitido");
+        }
+        if (description.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Descrição deve ter no máximo 255 caracteres"
+            );
+        }
+        if (category != null && category.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Categoria deve ter no máximo 255 caracteres"
+            );
+        }
+        if (rejectionReason != null && rejectionReason.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Motivo da rejeição deve ter no máximo 255 caracteres"
+            );
+        }
         this.type = type;
         this.amount = amount;
         this.category = category;
@@ -46,6 +79,8 @@ public class Transaction {
         this.status = status;
         this.rejectionReason = rejectionReason;
         this.originalTransactionId = originalTransactionId;
+        this.description = description;
+        this.creationDate = creationDate;
     }
 
     public TransactionType getType() {
@@ -78,5 +113,17 @@ public class Transaction {
 
     public Long getOriginalTransactionId() {
         return originalTransactionId;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Instant getCreationDate() {
+        return creationDate;
     }
 }
