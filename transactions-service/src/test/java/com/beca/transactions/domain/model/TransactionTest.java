@@ -306,14 +306,13 @@ public class TransactionTest {
     }
 
     @Test
-    @DisplayName("aceita zero excedente após a segunda casa decimal sem arredondar")
-    void testTransaction_WhenAmountHasTrailingZero_ShouldPreserveAmount() {
+    @DisplayName("rejeita zero excedente após a segunda casa decimal")
+    void testTransaction_WhenAmountHasTrailingZero_ShouldThrowException() {
         BigDecimal amount = new BigDecimal("10.120");
 
-        Transaction transaction = createDeposit(amount, "Depósito de teste", CREATION_DATE);
-
-        assertEquals(amount, transaction.getAmount());
-        assertEquals(3, transaction.getAmount().scale());
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(amount, "Depósito de teste", CREATION_DATE));
+        assertEquals("Valor da transação deve ter no máximo duas casas decimais", exception.getMessage());
     }
 
     @Test
