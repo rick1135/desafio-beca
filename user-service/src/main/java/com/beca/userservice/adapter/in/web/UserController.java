@@ -11,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.io.input.BOMInputStream;
+import java.nio.charset.StandardCharsets;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -19,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/users")
@@ -106,12 +107,16 @@ public class UserController {
                 .setSkipHeaderRecord(true)
                 .get();
 
-        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8);
+        try (Reader reader = new InputStreamReader(BOMInputStream.builder().setInputStream(file.getInputStream()).get(),
+                StandardCharsets.UTF_8);
              CSVParser parser = format.parse(reader)){
             List<String> expectedHeader = List.of("nome", "cpf", "email", "senha");
-            if(!parser.getHeaderNames().equals(expectedHeader)){
-                return ResponseEntity.badRequest()
-                        .body("Cabeçalho inválido. Esperado: nome,cpf,email,senha");
+            List<String> actualHeader = parser.getHeaderNames().stream()
+                    .map(name->name!=null ? name.trim().toLowerCase() : "")
+                    .toList();
+
+            if(!actualHeader.equals(expectedHeader)){
+                return ResponseEntity.badRequest().body("Cabeçalho inválido. Esperado: nome,cpf,email,senha");
             }
 
             List<CSVRecord> records = parser.getRecords();

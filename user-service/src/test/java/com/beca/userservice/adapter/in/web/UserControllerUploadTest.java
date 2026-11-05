@@ -99,6 +99,28 @@ class UserControllerUploadTest {
         verifyNoInteractions(importUsersUseCase, createUserUseCase);
     }
 
+    @Test
+    @DisplayName("deve aceitar CSV com BOM do Excel e cabeçalhos com maiúsculas e espaços")
+    void acceptsCsvWithBomAndCaseInsensitiveHeaders() {
+        // \uFEFF simula o BOM gerado pelo Excel UTF-8
+        String csvWithBom = "\uFEFF Nome , CPF , Email , Senha \n" +
+                "Carlos Teste,12345678909,carlos@example.com,Senha123\n";
+
+        when(importUsersUseCase.importUsers(anyList())).thenReturn(new ImportUsersResult(
+                1, 1, 0, java.util.List.of(
+                new ImportUserResult(1, "IMPORTADO", 10L, null)
+        )
+        ));
+
+        ResponseEntity<?> response = controller().upload(csvFile(csvWithBom));
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(importUsersUseCase).importUsers(argThat(rows ->
+                rows.size() == 1
+                        && rows.get(0).columns().get(0).equals("Carlos Teste")
+        ));
+    }
+
     private UserController controller() {
         return new UserController(
                 createUserUseCase,
