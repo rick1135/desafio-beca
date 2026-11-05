@@ -119,8 +119,8 @@ public class UserController {
             int registro = 0;
 
             for(CSVRecord record : records){
-                List<String> columns = new ArrayList<>();
-                record.forEach(columns::add);
+                final List<String> columns = new ArrayList<>();
+                record.forEach(value -> columns.add(value!=null ? value.trim() : ""));
                 rows.add(new ImportUserRow(++registro, columns));
             }
 

@@ -39,7 +39,10 @@ public class ImportUsersService implements ImportUsersUseCase {
             }
 
             NewUserData data = new NewUserData(
-                    columns.get(0), columns.get(1), columns.get(2), columns.get(3)
+                    columns.get(0) != null ? columns.get(0).trim() : null,
+                    columns.get(1) != null ? columns.get(1).trim() : null,
+                    columns.get(2) != null ? columns.get(2).trim() : null,
+                    columns.get(3) != null ? columns.get(3).trim() : null
             );
 
             Set<ConstraintViolation<NewUserData>> violations = validator.validate(data);

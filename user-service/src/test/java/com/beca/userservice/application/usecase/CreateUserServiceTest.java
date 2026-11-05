@@ -11,8 +11,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -48,5 +48,40 @@ public class CreateUserServiceTest {
         assertEquals("ana@example.com", res.getEmail());
         assertEquals("12345678909", res.getCpf());
         assertEquals(1L,  res.getId());
+    }
+
+    @Test
+    @DisplayName("deve normalizar email com trim e toLowerCase antes de verificar e salvar")
+    void testCreate_WhenEmailHasUppercaseAndSpaces_ShouldNormalizeEmail() {
+        // given
+        String rawEmail = "  Ana.Teste@EXAMPLE.com  ";
+        String expectedEmail = "ana.teste@example.com";
+        User savedUser = new User(1L, "Ana", "12345678909", expectedEmail, "encoded-password");
+
+        given(passwordEncoder.encode("password")).willReturn("encoded-password");
+        given(repository.existsByEmail(expectedEmail)).willReturn(false);
+        given(repository.save(any(User.class))).willReturn(savedUser);
+
+        // when
+        User res = service.create("Ana", "12345678909", rawEmail, "password");
+
+        // then
+        then(repository).should().existsByEmail(expectedEmail);
+        then(repository).should().save(argThat(user -> expectedEmail.equals(user.getEmail())));
+        assertEquals(expectedEmail, res.getEmail());
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção se email normalizado já existir")
+    void testCreate_WhenNormalizedEmailAlreadyExists_ShouldThrowDuplicateEmailException() {
+        // given
+        String rawEmail = "  Ana@Example.com ";
+        given(repository.existsByEmail("ana@example.com")).willReturn(true);
+
+        // when & then
+        assertThrows(DuplicateEmailException.class, () ->
+                service.create("Ana", "12345678909", rawEmail, "password")
+        );
+        then(repository).shouldHaveNoMoreInteractions();
     }
 }

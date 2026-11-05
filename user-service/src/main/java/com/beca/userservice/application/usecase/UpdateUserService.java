@@ -15,13 +15,14 @@ public class UpdateUserService implements UpdateUserUseCase{
 
     @Override
     public User update(Long id, String name, String email) {
+        String normalizedEmail = (email!=null) ? email.trim().toLowerCase() : null;
         User existingUser = repository.findById(id).orElseThrow(()->new UserNotFoundException(id));
 
         User updatedUser = new User(
                 existingUser.getId(),
                 name,
                 existingUser.getCpf(),
-                email,
+                normalizedEmail,
                 existingUser.getPasswordHash()
         );
 

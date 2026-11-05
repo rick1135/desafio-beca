@@ -18,9 +18,10 @@ public class CreateUserService implements CreateUserUseCase{
 
     @Override
     public User create(String name, String cpf, String email, String password) {
-        if(repository.existsByEmail(email)) throw new DuplicateEmailException();
+        String normalizedEmail = (email!=null) ? email.trim().toLowerCase() : null;
+        if(repository.existsByEmail(normalizedEmail)) throw new DuplicateEmailException();
         String passwordHash = passwordEncoder.encode(password);
-        User user = new User(null, name, cpf, email, passwordHash);
+        User user = new User(null, name, cpf, normalizedEmail, passwordHash);
         return repository.save(user);
     }
 }
