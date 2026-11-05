@@ -16,6 +16,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
 
     @Override
     public Transaction save(Transaction transaction) {
+        if(transaction.getId()!=null) throw new IllegalArgumentException("" +
+                "Uma nova transação não pode ter ID preenchido");
         TransactionEntity entity = toEntity(transaction);
         TransactionEntity savedEntity = repository.saveAndFlush(entity);
         return toDomain(savedEntity);

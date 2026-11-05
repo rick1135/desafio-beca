@@ -56,6 +56,21 @@ public class Transaction {
         if (amount.setScale(2).precision() > 19) {
             throw new IllegalArgumentException("Valor da transação excede o limite permitido");
         }
+        if (description.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Descrição deve ter no máximo 255 caracteres"
+            );
+        }
+        if (category != null && category.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Categoria deve ter no máximo 255 caracteres"
+            );
+        }
+        if (rejectionReason != null && rejectionReason.length() > 255) {
+            throw new IllegalArgumentException(
+                    "Motivo da rejeição deve ter no máximo 255 caracteres"
+            );
+        }
         this.type = type;
         this.amount = amount;
         this.category = category;

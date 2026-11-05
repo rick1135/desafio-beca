@@ -316,6 +316,64 @@ public class TransactionTest {
         assertEquals(3, transaction.getAmount().scale());
     }
 
+    @Test
+    void deveAceitarDescricaoNoLimiteDoBanco() {
+        String descricao = "a".repeat(255);
+        Transaction transaction = createDeposit(new BigDecimal("10.00"), descricao, CREATION_DATE);
+        assertEquals(descricao, transaction.getDescription());
+    }
+
+    @Test
+    void deveRejeitarDescricaoAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(new BigDecimal("10.00"), "a".repeat(256), CREATION_DATE));
+        assertEquals("Descrição deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
+    @Test
+    void deveAceitarCategoriaNoLimiteDoBanco() {
+        String categoria = "a".repeat(255);
+        Transaction transaction = new Transaction(
+                null, TransactionType.PURCHASE, new BigDecimal("10.00"), categoria,
+                1L, null, TransactionStatus.APPROVED, null, null,
+                "Compra de teste", CREATION_DATE
+        );
+        assertEquals(categoria, transaction.getCategory());
+    }
+
+    @Test
+    void deveRejeitarCategoriaAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> new Transaction(
+                        null, TransactionType.PURCHASE, new BigDecimal("10.00"), "a".repeat(256),
+                        1L, null, TransactionStatus.APPROVED, null, null,
+                        "Compra de teste", CREATION_DATE
+                ));
+        assertEquals("Categoria deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
+    @Test
+    void deveAceitarMotivoDeRejeicaoNoLimiteDoBanco() {
+        String motivo = "a".repeat(255);
+        Transaction transaction = new Transaction(
+                null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
+                1L, null, TransactionStatus.REJECTED, motivo, null,
+                "Retirada de teste", CREATION_DATE
+        );
+        assertEquals(motivo, transaction.getRejectionReason());
+    }
+
+    @Test
+    void deveRejeitarMotivoDeRejeicaoAcimaDoLimiteDoBanco() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> new Transaction(
+                        null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
+                        1L, null, TransactionStatus.REJECTED, "a".repeat(256), null,
+                        "Retirada de teste", CREATION_DATE
+                ));
+        assertEquals("Motivo da rejeição deve ter no máximo 255 caracteres", exception.getMessage());
+    }
+
     private Transaction createDeposit(BigDecimal amount, String description, Instant creationDate) {
         return new Transaction(
                 null, TransactionType.DEPOSIT, amount, null,
