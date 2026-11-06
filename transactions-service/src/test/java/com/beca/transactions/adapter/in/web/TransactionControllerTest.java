@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.AdditionalMatchers.cmpEq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -33,7 +34,7 @@ class TransactionControllerTest {
 
     @Test
     void returnsCreatedTransactionWithLocation() throws Exception {
-        when(service.create(eq(1L), eq(TransactionType.DEPOSIT), eq(new BigDecimal("25.00")),
+        when(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
                 eq("Depósito de teste"), isNull(), isNull(), isNull()))
                 .thenReturn(transaction(TransactionType.DEPOSIT, TransactionStatus.APPROVED, null));
 
@@ -53,7 +54,7 @@ class TransactionControllerTest {
 
     @Test
     void returnsPersistedRejectionWithReason() throws Exception {
-        when(service.create(eq(1L), eq(TransactionType.WITHDRAW), eq(new BigDecimal("25.00")),
+        when(service.create(eq(1L), eq(TransactionType.WITHDRAW), cmpEq(new BigDecimal("25.00")),
                 eq("Retirada de teste"), isNull(), isNull(), isNull()))
                 .thenReturn(transaction(TransactionType.WITHDRAW, TransactionStatus.REJECTED,
                         "Limite diário excedido"));

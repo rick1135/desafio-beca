@@ -5,6 +5,8 @@ import com.beca.transactions.application.exception.ExternalServiceUnavailableExc
 import com.beca.transactions.application.exception.TransactionNotFoundException;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.application.exception.AccountBalanceNotFoundException;
+import com.beca.transactions.domain.model.TransactionType;
+import tools.jackson.databind.exc.InvalidFormatException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Arrays;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -43,6 +46,10 @@ public class GlobalExceptionHandler {
             details.putIfAbsent(field, error.getDefaultMessage());
         });
 
+        ex.getBindingResult().getGlobalErrors().forEach(error ->
+                details.putIfAbsent("_global", error.getDefaultMessage())
+        );
+
         return response(
                 HttpStatus.BAD_REQUEST,
                 "Um ou mais campos inválidos",
@@ -54,6 +61,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleUnreadableBody(
             HttpMessageNotReadableException ex
     ) {
+        Throwable cause = ex.getCause();
+
+        while (cause != null) {
+            if (cause instanceof InvalidFormatException invalid
+                    && invalid.getTargetType() == TransactionType.class) {
+                String field = invalid.getPath().stream()
+                        .map(reference -> reference.getPropertyName())
+                        .filter(name -> name != null)
+                        .findFirst()
+                        .orElse("type");
+
+                return response(
+                        HttpStatus.BAD_REQUEST,
+                        "Tipo de transação inválido.",
+                        Map.of(field, "Valores aceitos: "
+                                + Arrays.toString(TransactionType.values()))
+                );
+            }
+            cause = cause.getCause();
+        }
+
         return response(
                 HttpStatus.BAD_REQUEST,
                 "Corpo da requisição inválido ou malformado.",
@@ -101,6 +129,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex) {
         if (ex instanceof ErrorResponse springError) {
+            String detail = springError.getBody().getDetail();
+            String message = detail == null || detail.isBlank()
+                    ? "Erro na requisição."
+                    : detail;
+
             var status = springError.getStatusCode();
             var knownStatus = HttpStatus.resolve(status.value());
             String error = knownStatus != null
@@ -112,7 +145,7 @@ public class GlobalExceptionHandler {
                     .body(new ApiErrorResponse(
                             status.value(),
                             error,
-                            "Erro na requisição.",
+                            message,
                             Map.of()
                     ));
         }
