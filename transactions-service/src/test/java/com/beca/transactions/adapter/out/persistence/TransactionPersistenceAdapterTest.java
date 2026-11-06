@@ -13,7 +13,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
@@ -176,5 +178,88 @@ public class TransactionPersistenceAdapterTest {
 
         assertEquals(0, new BigDecimal("25.50").compareTo(encontrada.getAmount()));
         assertEquals("Compra original", encontrada.getDescription());
+    }
+
+    @Test
+    void deveBuscarApenasTransacoesAprovadasDoUsuarioDeOrigem() {
+        Instant data = Instant.parse("2026-11-06T12:00:00Z");
+
+        Transaction deposito = salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 1L, data);
+        Transaction compra = salvar(TransactionType.PURCHASE,
+                TransactionStatus.APPROVED, 1L, data);
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.REJECTED, 1L, data);
+        salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 2L, data);
+
+        entityManager.clear();
+
+        Set<Long> idsEncontrados = adapter.findApprovedByOriginUserId(1L)
+                .stream()
+                .map(Transaction::getId)
+                .collect(toSet());
+
+        assertEquals(Set.of(deposito.getId(), compra.getId()), idsEncontrados);
+    }
+
+    @Test
+    void deveBuscarApenasSaidasAprovadasNoIntervaloDiario() {
+        // meia noite de 06/11 em America/Sao_Paulo equivale a 03:00Z.
+        Instant inicio = Instant.parse("2026-11-06T03:00:00Z");
+        Instant fim = Instant.parse("2026-11-07T03:00:00Z");
+
+        Transaction retiradaNoInicio = salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, inicio);
+        Transaction transferencia = salvar(TransactionType.TRANSFER,
+                TransactionStatus.APPROVED, 1L, inicio.plusSeconds(60));
+        Transaction compra = salvar(TransactionType.PURCHASE,
+                TransactionStatus.APPROVED, 1L, fim.minusSeconds(1));
+
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, inicio.minusSeconds(1));
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, fim);
+        salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 1L, inicio.plusSeconds(60));
+        salvar(TransactionType.PURCHASE,
+                TransactionStatus.REJECTED, 1L, inicio.plusSeconds(60));
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 2L, inicio.plusSeconds(60));
+
+        entityManager.clear();
+
+        Set<Long> idsEncontrados =
+                adapter.findApprovedOutflowsByOriginUserIdBetween(1L, inicio, fim)
+                        .stream()
+                        .map(Transaction::getId)
+                        .collect(toSet());
+
+        assertEquals(Set.of(
+                retiradaNoInicio.getId(),
+                transferencia.getId(),
+                compra.getId()
+        ), idsEncontrados);
+    }
+
+    private Transaction salvar(
+            TransactionType type,
+            TransactionStatus status,
+            Long originUserId,
+            Instant date
+    ) {
+        return adapter.save(new Transaction(
+                null,
+                type,
+                new BigDecimal("10.00"),
+                type == TransactionType.PURCHASE ? "Alimentação" : null,
+                originUserId,
+                type == TransactionType.TRANSFER ? 2L : null,
+                status,
+                status == TransactionStatus.REJECTED ? "Teste de rejeição" : null,
+                null,
+                "Transação de teste",
+                date
+        ));
     }
 }

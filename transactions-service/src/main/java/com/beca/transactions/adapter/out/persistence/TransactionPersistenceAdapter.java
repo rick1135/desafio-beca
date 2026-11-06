@@ -1,9 +1,13 @@
 package com.beca.transactions.adapter.out.persistence;
 
 import com.beca.transactions.domain.model.Transaction;
+import com.beca.transactions.domain.model.TransactionStatus;
+import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -26,6 +30,35 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
     @Override
     public Optional<Transaction> findById(Long id) {
         return repository.findById(id).map(entity -> toDomain(entity));
+    }
+
+    @Override
+    public List<Transaction> findApprovedByOriginUserId(Long userId) {
+        return repository
+                .findByOriginUserIdAndStatus(userId, TransactionStatus.APPROVED)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Transaction> findApprovedOutflowsByOriginUserIdBetween(
+            Long userId,
+            Instant startInclusive,
+            Instant endExclusive
+    ) {
+        return repository
+                .findByOriginUserIdAndStatusAndTypeInAndCreationDateGreaterThanEqualAndCreationDateLessThan(
+                        userId,
+                        TransactionStatus.APPROVED,
+                        List.of(TransactionType.WITHDRAW, TransactionType.TRANSFER, TransactionType.PURCHASE
+                        ),
+                        startInclusive,
+                        endExclusive
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     private TransactionEntity toEntity(Transaction transaction) {
