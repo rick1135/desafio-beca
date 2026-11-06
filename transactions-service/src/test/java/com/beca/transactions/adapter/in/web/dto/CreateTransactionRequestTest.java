@@ -71,6 +71,27 @@ public class CreateTransactionRequestTest {
     }
 
     @Test
+    void informaEmPortuguesQuandoIdsSaoInvalidos() {
+        CreateTransactionRequest transfer = new CreateTransactionRequest(
+                TransactionType.TRANSFER, new BigDecimal("10.00"),
+                "Transferência", null, 0L, null
+        );
+        CreateTransactionRequest correction = new CreateTransactionRequest(
+                TransactionType.DEPOSIT, new BigDecimal("10.00"),
+                "Correção", null, null, 0L
+        );
+
+        assertEquals("ID do usuário de destino deve ser maior que zero",
+                validator.validate(transfer).stream()
+                        .filter(error -> error.getPropertyPath().toString().equals("destinationUserId"))
+                        .findFirst().orElseThrow().getMessage());
+        assertEquals("ID da transação original deve ser maior que zero",
+                validator.validate(correction).stream()
+                        .filter(error -> error.getPropertyPath().toString().equals("originalTransactionId"))
+                        .findFirst().orElseThrow().getMessage());
+    }
+
+    @Test
     void rejeitaValoresInvalidos() {
         for (String amount : Set.of("0.00", "-1.00", "10.120", "10.123",
                 "100000000000000000.00")) {

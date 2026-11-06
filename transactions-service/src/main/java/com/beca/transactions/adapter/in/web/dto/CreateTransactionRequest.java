@@ -24,10 +24,10 @@ public record CreateTransactionRequest(
         @Size(max = 255, message = "Categoria deve ter no máximo 255 caracteres")
         String category,
 
-        @Positive
+        @Positive(message = "ID do usuário de destino deve ser maior que zero")
         Long destinationUserId,
 
-        @Positive
+        @Positive(message = "ID da transação original deve ser maior que zero")
         Long originalTransactionId
 ) {
     @JsonIgnore
