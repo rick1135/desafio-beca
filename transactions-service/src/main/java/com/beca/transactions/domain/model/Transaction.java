@@ -6,6 +6,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public class Transaction {
+    private static final String DEPOSIT_CATEGORY = "Depósito";
+    private static final String WITHDRAW_CATEGORY = "Retirada";
+
     private final Long id;
     private final TransactionType type;
     private final BigDecimal amount;
@@ -75,7 +78,7 @@ public class Transaction {
         }
         this.type = type;
         this.amount = amount.setScale(2);
-        this.category = category;
+        this.category = defaultCategory(type, category);
         this.originUserId = originUserId;
         this.destinationUserId = destinationUserId;
         this.status = status;
@@ -127,5 +130,16 @@ public class Transaction {
 
     public Instant getCreationDate() {
         return creationDate;
+    }
+
+    private static String defaultCategory(TransactionType type, String category) {
+        if (category != null && !category.isBlank()) {
+            return category;
+        }
+        return switch (type) {
+            case DEPOSIT -> DEPOSIT_CATEGORY;
+            case WITHDRAW -> WITHDRAW_CATEGORY;
+            default -> category;
+        };
     }
 }
