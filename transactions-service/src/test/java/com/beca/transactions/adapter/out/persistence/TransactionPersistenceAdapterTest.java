@@ -13,7 +13,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
@@ -176,5 +178,129 @@ public class TransactionPersistenceAdapterTest {
 
         assertEquals(0, new BigDecimal("25.50").compareTo(encontrada.getAmount()));
         assertEquals("Compra original", encontrada.getDescription());
+    }
+
+    @Test
+    void deveBuscarApenasTransacoesAprovadasDoUsuarioDeOrigem() {
+        Instant data = Instant.parse("2026-11-06T12:00:00Z");
+
+        Transaction deposito = salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 1L, data);
+        Transaction compra = salvar(TransactionType.PURCHASE,
+                TransactionStatus.APPROVED, 1L, data);
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.REJECTED, 1L, data);
+        salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 2L, data);
+
+        entityManager.clear();
+
+        Set<Long> idsEncontrados = adapter.findApprovedByOriginUserId(1L)
+                .stream()
+                .map(Transaction::getId)
+                .collect(toSet());
+
+        assertEquals(Set.of(deposito.getId(), compra.getId()), idsEncontrados);
+    }
+
+    @Test
+    void deveBuscarApenasSaidasAprovadasNoIntervaloDiario() {
+        // meia noite de 06/11 em America/Sao_Paulo equivale a 03:00Z.
+        Instant inicio = Instant.parse("2026-11-06T03:00:00Z");
+        Instant fim = Instant.parse("2026-11-07T03:00:00Z");
+
+        Transaction retiradaNoInicio = salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, inicio);
+        Transaction transferencia = salvar(TransactionType.TRANSFER,
+                TransactionStatus.APPROVED, 1L, inicio.plusSeconds(60));
+        Transaction compra = salvar(TransactionType.PURCHASE,
+                TransactionStatus.APPROVED, 1L, fim.minusSeconds(1));
+
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, inicio.minusSeconds(1));
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 1L, fim);
+        salvar(TransactionType.DEPOSIT,
+                TransactionStatus.APPROVED, 1L, inicio.plusSeconds(60));
+        salvar(TransactionType.PURCHASE,
+                TransactionStatus.REJECTED, 1L, inicio.plusSeconds(60));
+        salvar(TransactionType.WITHDRAW,
+                TransactionStatus.APPROVED, 2L, inicio.plusSeconds(60));
+
+        entityManager.clear();
+
+        Set<Long> idsEncontrados =
+                adapter.findApprovedOutflowsByOriginUserIdBetween(1L, inicio, fim)
+                        .stream()
+                        .map(Transaction::getId)
+                        .collect(toSet());
+
+        assertEquals(Set.of(
+                retiradaNoInicio.getId(),
+                transferencia.getId(),
+                compra.getId()
+        ), idsEncontrados);
+    }
+
+    @Test
+    void deveBuscarApenasTransferenciasAprovadasRecebidasPeloDestinatario() {
+        Instant data = Instant.parse("2026-11-06T12:00:00Z");
+        Transaction primeira = salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 2L, data);
+        Transaction segunda = salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 3L, 2L,
+                data.minusSeconds(86400));
+        salvar(TransactionType.TRANSFER, TransactionStatus.REJECTED, 1L, 2L, data);
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 3L, data);
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 2L, 1L, data);
+        salvar(TransactionType.DEPOSIT, TransactionStatus.APPROVED, 1L, 2L, data);
+        entityManager.clear();
+
+        var recebidas = adapter.findApprovedIncomingTransfersByUserId(2L);
+
+        assertEquals(2, recebidas.size());
+        assertEquals(Set.of(primeira.getId(), segunda.getId()),
+                recebidas.stream().map(Transaction::getId).collect(toSet()));
+        assertTrue(recebidas.stream().allMatch(t -> t.getDestinationUserId().equals(2L)
+                && t.getType() == TransactionType.TRANSFER
+                && t.getStatus() == TransactionStatus.APPROVED));
+    }
+
+    @Test
+    void deveRetornarVazioQuandoUsuarioNaoTemTransferenciasRecebidas() {
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 2L,
+                Instant.parse("2026-11-06T12:00:00Z"));
+        entityManager.clear();
+
+        assertTrue(adapter.findApprovedIncomingTransfersByUserId(3L).isEmpty());
+    }
+
+    private Transaction salvar(
+            TransactionType type,
+            TransactionStatus status,
+            Long originUserId,
+            Instant date
+    ) {
+        return salvar(type, status, originUserId, type == TransactionType.TRANSFER ? 2L : null, date);
+    }
+
+    private Transaction salvar(
+            TransactionType type,
+            TransactionStatus status,
+            Long originUserId,
+            Long destinationUserId,
+            Instant date
+    ) {
+        return adapter.save(new Transaction(
+                null,
+                type,
+                new BigDecimal("10.00"),
+                type == TransactionType.PURCHASE ? "Alimentação" : null,
+                originUserId,
+                destinationUserId,
+                status,
+                status == TransactionStatus.REJECTED ? "Teste de rejeição" : null,
+                null,
+                "Transação de teste",
+                date
+        ));
     }
 }

@@ -4,6 +4,7 @@ import com.beca.transactions.adapter.in.web.dto.ApiErrorResponse;
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
 import com.beca.transactions.application.exception.TransactionNotFoundException;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
+import com.beca.transactions.application.exception.AccountBalanceNotFoundException;
 import com.beca.transactions.domain.model.TransactionType;
 import tools.jackson.databind.exc.InvalidFormatException;
 import org.slf4j.Logger;
@@ -91,6 +92,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TransactionNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
             TransactionNotFoundException ex
+    ) {
+        return response(HttpStatus.NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(AccountBalanceNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountBalanceNotFound(
+            AccountBalanceNotFoundException ex
     ) {
         return response(HttpStatus.NOT_FOUND, ex.getMessage(), Map.of());
     }

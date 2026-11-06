@@ -12,3 +12,6 @@ spring:
 
 server:
   port: 8081
+
+mock-api:
+  base-url: ${MOCK_API_BASE_URL}
