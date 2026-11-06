@@ -1,5 +1,6 @@
 package com.beca.transactions.domain.model;
 
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -100,6 +101,57 @@ public class TransactionTest {
                 null,
                 null, "Descrição de teste", CREATION_DATE
         ));
+    }
+
+    @Test
+    @DisplayName("rejeita transferência com ID de destino não positivo")
+    void testTransfer_WhenDestinationIdIsNotPositive_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        //when then
+        for (Long destinationId : new Long[]{0L, -1L}) {
+            assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                    null, TransactionType.TRANSFER, amount, null,
+                    1L, destinationId, TransactionStatus.APPROVED,
+                    null, null, "Transferência de teste", CREATION_DATE
+            ));
+        }
+    }
+
+    @Test
+    @DisplayName("rejeita destinatário em tipos diferentes de transferência")
+    void testTransaction_WhenNonTransferHasDestination_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        //when then
+        for (TransactionType type : new TransactionType[]{
+                TransactionType.DEPOSIT, TransactionType.WITHDRAW, TransactionType.PURCHASE
+        }) {
+            assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                    null, type, amount,
+                    type == TransactionType.PURCHASE ? "Alimentação" : null,
+                    1L, 2L, TransactionStatus.APPROVED, null, null,
+                    "Transação de teste", CREATION_DATE
+            ));
+        }
+    }
+
+    @Test
+    @DisplayName("rejeita transação com ID de origem não positivo")
+    void testTransaction_WhenOriginIdIsNotPositive_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        //when then
+        for (Long originId : new Long[]{0L, -1L}) {
+            assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                    null, TransactionType.PURCHASE, amount, "Alimentação",
+                    originId, null, TransactionStatus.APPROVED,
+                    null, null, "Compra de teste", CREATION_DATE
+            ));
+        }
     }
 
     @Test

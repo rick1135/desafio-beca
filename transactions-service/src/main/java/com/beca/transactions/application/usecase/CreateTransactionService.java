@@ -8,6 +8,7 @@ import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import com.beca.transactions.domain.port.AccountOperationLockPort;
+import com.beca.transactions.domain.port.UserLookupPort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -26,11 +27,14 @@ public class CreateTransactionService {
     private final AccountBalancePort accounts;
     private final BalanceRules rules = new BalanceRules();
     private final AccountOperationLockPort accountLock;
+    private final UserLookupPort users;
 
-    public CreateTransactionService(TransactionRepositoryPort transactions, AccountBalancePort accounts, AccountOperationLockPort accountLock) {
+    public CreateTransactionService(TransactionRepositoryPort transactions, AccountBalancePort accounts,
+                                    AccountOperationLockPort accountLock, UserLookupPort users) {
         this.transactions = transactions;
         this.accounts = accounts;
         this.accountLock = accountLock;
+        this.users = users;
     }
 
     @Transactional
@@ -38,10 +42,26 @@ public class CreateTransactionService {
             String description, String category, Long destinationUserId, Long originalTransactionId
     ){
         Instant now = Instant.now();
+        Transaction candidate = new Transaction(
+                null, type, amount, category, originUserId, destinationUserId,
+                TransactionStatus.APPROVED, null, originalTransactionId, description, now
+        );
         TransactionStatus status = TransactionStatus.APPROVED;
         String rejectionReason = null;
 
-        if (type!=TransactionType.DEPOSIT){
+        if (type == TransactionType.TRANSFER) {
+            try {
+                if (!users.existsById(destinationUserId)) {
+                    status = TransactionStatus.REJECTED;
+                    rejectionReason = "Usuário de destino não encontrado";
+                }
+            } catch (ExternalServiceUnavailableException ex) {
+                status = TransactionStatus.REJECTED;
+                rejectionReason = "Serviço de consulta de usuários temporariamente indisponível";
+            }
+        }
+
+        if (type != TransactionType.DEPOSIT && status == TransactionStatus.APPROVED) {
             try {
                 var account = accounts.findByUserId(originUserId);
                 if(account.isEmpty()){
@@ -80,6 +100,10 @@ public class CreateTransactionService {
 
         if (type == TransactionType.DEPOSIT) {
             accountLock.lockForUser(originUserId);
+        }
+
+        if (status == TransactionStatus.APPROVED) {
+            return transactions.save(candidate);
         }
 
         Transaction transaction = new Transaction(

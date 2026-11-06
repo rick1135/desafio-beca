@@ -47,4 +47,10 @@ public record CreateTransactionRequest(
     public boolean isDestinationValid(){
         return type!= TransactionType.TRANSFER || destinationUserId!=null;
     }
+
+    @JsonIgnore
+    @AssertTrue(message = "Usuário de destino é permitido apenas para transferências")
+    public boolean isDestinationOnlyForTransfer() {
+        return destinationUserId == null || type == TransactionType.TRANSFER;
+    }
 }

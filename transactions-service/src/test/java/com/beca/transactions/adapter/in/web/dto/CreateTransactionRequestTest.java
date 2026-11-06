@@ -71,6 +71,21 @@ public class CreateTransactionRequestTest {
     }
 
     @Test
+    void rejeitaDestinoEmTiposQueNaoSaoTransferencia() {
+        for (TransactionType type : new TransactionType[]{
+                TransactionType.DEPOSIT, TransactionType.WITHDRAW, TransactionType.PURCHASE
+        }) {
+            CreateTransactionRequest request = new CreateTransactionRequest(
+                    type, new BigDecimal("10.00"), "Teste",
+                    type == TransactionType.PURCHASE ? "Alimentação" : null,
+                    2L, null
+            );
+
+            assertTrue(camposInvalidos(request).contains("destinationOnlyForTransfer"), type.toString());
+        }
+    }
+
+    @Test
     void informaEmPortuguesQuandoIdsSaoInvalidos() {
         CreateTransactionRequest transfer = new CreateTransactionRequest(
                 TransactionType.TRANSFER, new BigDecimal("10.00"),
