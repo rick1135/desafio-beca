@@ -30,6 +30,12 @@ public record CreateTransactionRequest(
         @Positive(message = "ID da transação original deve ser maior que zero")
         Long originalTransactionId
 ) {
+    public CreateTransactionRequest {
+        if (amount != null) {
+            amount = amount.stripTrailingZeros();
+        }
+    }
+
     @JsonIgnore
     @AssertTrue(message = "Categoria é obrigatório para compras")
     public boolean isCategoryValid(){

@@ -84,6 +84,28 @@ public class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void aceitaValorComZerosExcedentesNoFim() throws Exception {
+        mvc.perform(post("/test/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type": "DEPOSIT", "amount": 10.120, "description": "Depósito"}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void devolve400ComCampoParaValorComFracaoExcedente() throws Exception {
+        mvc.perform(post("/test/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type": "DEPOSIT", "amount": 10.1230, "description": "Depósito"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.amount")
+                        .value("Valor deve ter até 17 dígitos inteiros e duas casas decimais"));
+    }
+
+    @Test
     void devolve400ParaJsonInvalido() throws Exception {
         mvc.perform(post("/test/transactions")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -93,7 +93,7 @@ public class CreateTransactionRequestTest {
 
     @Test
     void rejeitaValoresInvalidos() {
-        for (String amount : Set.of("0.00", "-1.00", "10.120", "10.123",
+        for (String amount : Set.of("0.00", "-1.00", "10.123", "10.1230",
                 "100000000000000000.00")) {
             CreateTransactionRequest request = new CreateTransactionRequest(
                     TransactionType.DEPOSIT, new BigDecimal(amount),
@@ -101,6 +101,19 @@ public class CreateTransactionRequestTest {
             );
 
             assertTrue(camposInvalidos(request).contains("amount"), amount);
+        }
+    }
+
+    @Test
+    void aceitaZerosExcedentesNoFimDoValor() {
+        for (String amount : Set.of("10.120", "10.1200", "10.000", "1000.000",
+                "99999999999999999.9900")) {
+            CreateTransactionRequest request = new CreateTransactionRequest(
+                    TransactionType.DEPOSIT, new BigDecimal(amount),
+                    "Depósito", null, null, null
+            );
+
+            assertTrue(validator.validate(request).isEmpty(), amount);
         }
     }
 
