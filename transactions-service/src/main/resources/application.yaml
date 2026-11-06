@@ -2,7 +2,7 @@ spring:
   application:
     name: transactions-service
   datasource:
-    url: jdbc:postgresql://localhost:${TRANSACTION_DB_PORT}/${TRANSACTION_DB_NAME}
+    url: jdbc:postgresql://${TRANSACTION_DB_HOST:localhost}:${TRANSACTION_DB_PORT}/${TRANSACTION_DB_NAME}
     username: ${TRANSACTION_DB_USER}
     password: ${TRANSACTION_DB_PASSWORD}
 

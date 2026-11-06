@@ -52,7 +52,7 @@ public class Transaction {
         if (creationDate == null) {
             throw new InvalidTransactionException("Data da transação é obrigatória");
         }
-        if (amount.scale() > 2) {
+        if (amount.stripTrailingZeros().scale() > 2) {
             throw new InvalidTransactionException("Valor da transação deve ter no máximo duas casas decimais");
         }
         if (amount.setScale(2).precision() > 19) {
@@ -74,7 +74,7 @@ public class Transaction {
             );
         }
         this.type = type;
-        this.amount = amount;
+        this.amount = amount.setScale(2);
         this.category = category;
         this.originUserId = originUserId;
         this.destinationUserId = destinationUserId;
