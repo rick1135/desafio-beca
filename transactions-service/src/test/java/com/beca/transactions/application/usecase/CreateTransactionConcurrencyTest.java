@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.when;
         "spring.datasource.password=test"
 })
 @ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
 class CreateTransactionConcurrencyTest {
     private static final Long USER_ID = 1L;
 

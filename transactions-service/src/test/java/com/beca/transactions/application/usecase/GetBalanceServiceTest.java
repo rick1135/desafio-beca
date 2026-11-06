@@ -73,6 +73,32 @@ class GetBalanceServiceTest {
     }
 
     @Test
+    void sameTransferDebitsSenderAndCreditsRecipientWithoutSpendingRecipientsDailyLimit() {
+        Transaction transfer = new Transaction(null, TransactionType.TRANSFER, money("75.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                "Transferência", Instant.now());
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(new AccountBalance(
+                1L, money("100.00"), money("800.00"), money("500.00"))));
+        when(accounts.findByUserId(2L)).thenReturn(Optional.of(new AccountBalance(
+                2L, money("20.00"), money("800.00"), money("500.00"))));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(transfer));
+        when(transactions.findApprovedByOriginUserId(2L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(2L)).thenReturn(List.of(transfer));
+
+        GetBalanceService service = new GetBalanceService(accounts, transactions);
+        var sender = service.getBalance(1L);
+        var recipient = service.getBalance(2L);
+
+        assertEquals(0, money("25.00").compareTo(sender.effectiveBalance()));
+        assertEquals(0, money("75.00").compareTo(sender.dailySpent()));
+        assertEquals(0, money("95.00").compareTo(recipient.effectiveBalance()));
+        assertEquals(0, money("0.00").compareTo(recipient.dailySpent()));
+        verify(transactions).findApprovedIncomingTransfersByUserId(1L);
+        verify(transactions).findApprovedIncomingTransfersByUserId(2L);
+    }
+
+    @Test
     void missingAccountDoesNotQueryTransactions() {
         when(accounts.findByUserId(1L)).thenReturn(Optional.empty());
 

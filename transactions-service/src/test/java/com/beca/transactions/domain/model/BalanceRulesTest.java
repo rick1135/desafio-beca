@@ -21,10 +21,48 @@ class BalanceRulesTest {
         Transaction transfer = transaction(TransactionType.TRANSFER, TransactionStatus.APPROVED, "75.00");
 
         var result = rules.calculate(account, List.of(deposit, purchase, rejected, transfer),
-                List.of(purchase, rejected, transfer));
+                List.of(purchase, rejected, transfer), List.of());
 
         assertEquals(0, money("1025.00").compareTo(result.effectiveBalance()));
         assertEquals(0, money("175.00").compareTo(result.dailySpent()));
+    }
+
+    @Test
+    void incomingTransferIncreasesBalanceWithoutIncreasingDailySpending() {
+        Transaction incoming = new Transaction(null, TransactionType.TRANSFER, money("75.00"),
+                null, 2L, 1L, TransactionStatus.APPROVED, null, null,
+                "Transferência recebida", Instant.parse("2026-11-06T12:00:00Z"));
+        Transaction purchase = transaction(TransactionType.PURCHASE, TransactionStatus.APPROVED, "100.00");
+
+        var result = rules.calculate(account, List.of(purchase), List.of(purchase), List.of(incoming));
+
+        assertEquals(0, money("975.00").compareTo(result.effectiveBalance()));
+        assertEquals(0, money("100.00").compareTo(result.dailySpent()));
+    }
+
+    @Test
+    void rejectedIncomingTransferDoesNotChangeBalanceOrDailySpending() {
+        Transaction incoming = new Transaction(null, TransactionType.TRANSFER, money("75.00"),
+                null, 2L, 1L, TransactionStatus.REJECTED, "Saldo insuficiente", null,
+                "Transferência rejeitada", Instant.parse("2026-11-06T12:00:00Z"));
+
+        var result = rules.calculate(account, List.of(), List.of(), List.of(incoming));
+
+        assertEquals(0, money("1000.00").compareTo(result.effectiveBalance()));
+        assertEquals(0, money("0.00").compareTo(result.dailySpent()));
+    }
+
+    @Test
+    void incomingListDoesNotCreditAnotherRecipientOrNonTransfer() {
+        Transaction anotherRecipient = transaction(TransactionType.TRANSFER, TransactionStatus.APPROVED, "75.00");
+        Transaction deposit = new Transaction(null, TransactionType.DEPOSIT, money("50.00"),
+                null, 2L, 1L, TransactionStatus.APPROVED, null, null,
+                "Outro tipo", Instant.parse("2026-11-06T12:00:00Z"));
+
+        var result = rules.calculate(account, List.of(), List.of(), List.of(anotherRecipient, deposit));
+
+        assertEquals(0, money("1000.00").compareTo(result.effectiveBalance()));
+        assertEquals(0, money("0.00").compareTo(result.dailySpent()));
     }
 
     @Test

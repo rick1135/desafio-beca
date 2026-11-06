@@ -61,6 +61,18 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 .toList();
     }
 
+    @Override
+    public List<Transaction> findApprovedIncomingTransfersByUserId(Long userId) {
+        return repository.findByDestinationUserIdAndTypeAndStatus(
+                        userId,
+                        TransactionType.TRANSFER,
+                        TransactionStatus.APPROVED
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private TransactionEntity toEntity(Transaction transaction) {
         return new TransactionEntity(
                 transaction.getId(),

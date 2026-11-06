@@ -13,4 +13,5 @@ public interface TransactionRepositoryPort {
     List<Transaction> findApprovedOutflowsByOriginUserIdBetween(
             Long userId, Instant startInclusive, Instant endExclusive
     );
+    List<Transaction> findApprovedIncomingTransfersByUserId(Long userId);
 }

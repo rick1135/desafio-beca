@@ -59,7 +59,12 @@ public class CreateTransactionService {
                                     originUserId, start, end
                             );
 
-                    var summary = rules.calculate(account.get(), approved, todayOutflows);
+                    var receivedTransfers =
+                            transactions.findApprovedIncomingTransfersByUserId(originUserId);
+
+                    var summary = rules.calculate(
+                            account.get(), approved, todayOutflows, receivedTransfers
+                    );
                     var decision = rules.evaluateOutflow(account.get(), summary, amount);
 
                     if (!decision.approved()) {

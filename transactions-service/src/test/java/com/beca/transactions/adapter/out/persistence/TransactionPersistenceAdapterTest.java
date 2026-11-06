@@ -242,10 +242,51 @@ public class TransactionPersistenceAdapterTest {
         ), idsEncontrados);
     }
 
+    @Test
+    void deveBuscarApenasTransferenciasAprovadasRecebidasPeloDestinatario() {
+        Instant data = Instant.parse("2026-11-06T12:00:00Z");
+        Transaction primeira = salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 2L, data);
+        Transaction segunda = salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 3L, 2L,
+                data.minusSeconds(86400));
+        salvar(TransactionType.TRANSFER, TransactionStatus.REJECTED, 1L, 2L, data);
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 3L, data);
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 2L, 1L, data);
+        salvar(TransactionType.DEPOSIT, TransactionStatus.APPROVED, 1L, 2L, data);
+        entityManager.clear();
+
+        var recebidas = adapter.findApprovedIncomingTransfersByUserId(2L);
+
+        assertEquals(2, recebidas.size());
+        assertEquals(Set.of(primeira.getId(), segunda.getId()),
+                recebidas.stream().map(Transaction::getId).collect(toSet()));
+        assertTrue(recebidas.stream().allMatch(t -> t.getDestinationUserId().equals(2L)
+                && t.getType() == TransactionType.TRANSFER
+                && t.getStatus() == TransactionStatus.APPROVED));
+    }
+
+    @Test
+    void deveRetornarVazioQuandoUsuarioNaoTemTransferenciasRecebidas() {
+        salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 2L,
+                Instant.parse("2026-11-06T12:00:00Z"));
+        entityManager.clear();
+
+        assertTrue(adapter.findApprovedIncomingTransfersByUserId(3L).isEmpty());
+    }
+
     private Transaction salvar(
             TransactionType type,
             TransactionStatus status,
             Long originUserId,
+            Instant date
+    ) {
+        return salvar(type, status, originUserId, type == TransactionType.TRANSFER ? 2L : null, date);
+    }
+
+    private Transaction salvar(
+            TransactionType type,
+            TransactionStatus status,
+            Long originUserId,
+            Long destinationUserId,
             Instant date
     ) {
         return adapter.save(new Transaction(
@@ -254,7 +295,7 @@ public class TransactionPersistenceAdapterTest {
                 new BigDecimal("10.00"),
                 type == TransactionType.PURCHASE ? "Alimentação" : null,
                 originUserId,
-                type == TransactionType.TRANSFER ? 2L : null,
+                destinationUserId,
                 status,
                 status == TransactionStatus.REJECTED ? "Teste de rejeição" : null,
                 null,

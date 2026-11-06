@@ -35,6 +35,8 @@ public class GetBalanceService {
         Instant end = today.plusDays(1).atStartOfDay(ZONE).toInstant();
 
         var approved = transactions.findApprovedByOriginUserId(userId);
+        var receivedTransfers =
+                transactions.findApprovedIncomingTransfersByUserId(userId);
 
         var todayOutflows = approved.stream()
                 .filter(t -> !t.getCreationDate().isBefore(start) && t.getCreationDate().isBefore(end))
@@ -43,7 +45,9 @@ public class GetBalanceService {
                         || t.getType() == TransactionType.PURCHASE)
                 .toList();
 
-        var summary = rules.calculate(account, approved, todayOutflows);
+        var summary = rules.calculate(
+                account, approved, todayOutflows, receivedTransfers
+        );
 
         return new BalanceDetails(
                 userId, account.openingBalance(), summary.effectiveBalance(), summary.dailySpent(),

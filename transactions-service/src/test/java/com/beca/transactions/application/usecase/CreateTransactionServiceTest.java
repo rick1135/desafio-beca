@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,6 +83,44 @@ class CreateTransactionServiceTest {
     }
 
     @Test
+    void approvesWithdrawalUsingReceivedTransferWithoutCountingItAsDailySpending() {
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(account("0.00", "100.00", "100.00")));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of());
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any()))
+                .thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(1L))
+                .thenReturn(List.of(receivedTransfer("100.00")));
+
+        new CreateTransactionService(transactions, accounts, accountLock)
+                .create(1L, TransactionType.WITHDRAW, money("100.00"), "Retirada", null, null, null);
+
+        Transaction saved = capturedTransaction();
+        assertEquals(TransactionStatus.APPROVED, saved.getStatus());
+        assertNull(saved.getRejectionReason());
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(transactions).findApprovedIncomingTransfersByUserId(1L);
+        order.verify(transactions).save(any(Transaction.class));
+    }
+
+    @Test
+    void rejectsWithdrawalAboveBalanceIncludingReceivedTransfers() {
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(account("20.00", "800.00", "500.00")));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of());
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any()))
+                .thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(1L))
+                .thenReturn(List.of(receivedTransfer("75.00")));
+
+        new CreateTransactionService(transactions, accounts, accountLock)
+                .create(1L, TransactionType.WITHDRAW, money("95.01"), "Retirada", null, null, null);
+
+        Transaction saved = capturedTransaction();
+        assertEquals(TransactionStatus.REJECTED, saved.getStatus());
+        assertEquals("Saldo insuficiente", saved.getRejectionReason());
+    }
+
+    @Test
     void savesRejectionWhenMockApiIsUnavailable() {
         when(accounts.findByUserId(1L)).thenThrow(new ExternalServiceUnavailableException(
                 "MockAPI", new RuntimeException("timeout")));
@@ -108,6 +147,12 @@ class CreateTransactionServiceTest {
         assertEquals(TransactionStatus.REJECTED, saved.getStatus());
         assertEquals("Conta de saldo não encontrada", saved.getRejectionReason());
         verifyNoInteractions(accountLock);
+    }
+
+    private Transaction receivedTransfer(String amount) {
+        return new Transaction(null, TransactionType.TRANSFER, money(amount),
+                null, 2L, 1L, TransactionStatus.APPROVED, null, null,
+                "Transferência recebida", Instant.now());
     }
 
     private Transaction capturedTransaction() {

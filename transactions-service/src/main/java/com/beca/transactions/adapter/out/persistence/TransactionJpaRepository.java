@@ -18,4 +18,10 @@ public interface TransactionJpaRepository extends JpaRepository<TransactionEntit
             Instant startInclusive,
             Instant endExclusive
     );
+
+    List<TransactionEntity> findByDestinationUserIdAndTypeAndStatus(
+            Long destinationUserId,
+            TransactionType type,
+            TransactionStatus status
+    );
 }

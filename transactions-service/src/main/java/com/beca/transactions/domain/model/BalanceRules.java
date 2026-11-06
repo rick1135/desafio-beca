@@ -7,7 +7,8 @@ public class BalanceRules {
     public BalanceSummary calculate(
             AccountBalance account,
             List<Transaction> approvedTransactions,
-            List<Transaction> todayOutflows
+            List<Transaction> todayOutflows,
+            List<Transaction> receivedTransfers
     ){
         BigDecimal effectiveBalance = account.openingBalance();
 
@@ -22,6 +23,14 @@ public class BalanceRules {
         for (Transaction transaction:todayOutflows){
             if (transaction.getStatus() == TransactionStatus.APPROVED && isOutflow(transaction.getType()))
                 dailySpent = dailySpent.add(transaction.getAmount());
+        }
+
+        for (Transaction transaction : receivedTransfers) {
+            if (transaction.getStatus() == TransactionStatus.APPROVED
+                    && transaction.getType() == TransactionType.TRANSFER
+                    && account.userId().equals(transaction.getDestinationUserId())) {
+                effectiveBalance = effectiveBalance.add(transaction.getAmount());
+            }
         }
 
         return new BalanceSummary(effectiveBalance, dailySpent);
