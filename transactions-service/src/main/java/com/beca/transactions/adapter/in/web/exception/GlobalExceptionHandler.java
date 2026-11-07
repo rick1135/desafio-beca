@@ -2,6 +2,7 @@ package com.beca.transactions.adapter.in.web.exception;
 
 import com.beca.transactions.adapter.in.web.dto.ApiErrorResponse;
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
+import com.beca.transactions.application.exception.ForbiddenTransactionAccessException;
 import com.beca.transactions.application.exception.TransactionNotFoundException;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.application.exception.AccountBalanceNotFoundException;
@@ -95,6 +96,13 @@ public class GlobalExceptionHandler {
             TransactionNotFoundException ex
     ) {
         return response(HttpStatus.NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(ForbiddenTransactionAccessException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbiddenTransactionAccess(
+            ForbiddenTransactionAccessException ex
+    ) {
+        return response(HttpStatus.FORBIDDEN, ex.getMessage(), Map.of());
     }
 
     @ExceptionHandler(AccountBalanceNotFoundException.class)
