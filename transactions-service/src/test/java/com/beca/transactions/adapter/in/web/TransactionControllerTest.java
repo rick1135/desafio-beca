@@ -2,6 +2,7 @@ package com.beca.transactions.adapter.in.web;
 
 import com.beca.transactions.adapter.in.web.exception.GlobalExceptionHandler;
 import com.beca.transactions.application.usecase.CreateTransactionService;
+import com.beca.transactions.application.usecase.ProcessTransactionService;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
@@ -178,7 +179,8 @@ class TransactionControllerTest {
         AccountOperationLockPort lock = mock(AccountOperationLockPort.class);
         UserLookupPort users = mock(UserLookupPort.class);
         mvc = MockMvcBuilders.standaloneSetup(
-                        new TransactionController(new CreateTransactionService(repository, accounts, lock, users)))
+                        new TransactionController(new CreateTransactionService(
+                                accounts, users, new ProcessTransactionService(repository, lock))))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 

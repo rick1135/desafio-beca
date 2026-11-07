@@ -278,6 +278,48 @@ public class TransactionTest {
     }
 
     @Test
+    @DisplayName("rejeita o candidato preservando os dados da transferência")
+    void testTransaction_WhenRejected_ShouldPreserveCandidateData() {
+        // given
+        Transaction candidate = new Transaction(
+                null, TransactionType.TRANSFER, new BigDecimal("25.00"), "Ajuste",
+                1L, 2L, TransactionStatus.APPROVED, null, 10L,
+                "Transferência de teste", CREATION_DATE
+        );
+
+        // when
+        Transaction rejected = candidate.reject("Usuário de destino não encontrado");
+
+        // then
+        assertNotSame(candidate, rejected);
+        assertEquals(TransactionStatus.APPROVED, candidate.getStatus());
+        assertNull(candidate.getRejectionReason());
+        assertEquals(TransactionStatus.REJECTED, rejected.getStatus());
+        assertEquals("Usuário de destino não encontrado", rejected.getRejectionReason());
+        assertEquals(candidate.getId(), rejected.getId());
+        assertEquals(candidate.getType(), rejected.getType());
+        assertEquals(candidate.getAmount(), rejected.getAmount());
+        assertEquals(candidate.getCategory(), rejected.getCategory());
+        assertEquals(candidate.getOriginUserId(), rejected.getOriginUserId());
+        assertEquals(candidate.getDestinationUserId(), rejected.getDestinationUserId());
+        assertEquals(candidate.getOriginalTransactionId(), rejected.getOriginalTransactionId());
+        assertEquals(candidate.getDescription(), rejected.getDescription());
+        assertEquals(candidate.getCreationDate(), rejected.getCreationDate());
+    }
+
+    @Test
+    @DisplayName("exige um motivo válido ao rejeitar o candidato")
+    void testTransaction_WhenRejectionReasonIsBlank_ShouldThrowException() {
+        // given
+        Transaction candidate = createDeposit(
+                new BigDecimal("25.00"), "Depósito de teste", CREATION_DATE);
+
+        // when then
+        assertThrows(InvalidTransactionException.class, () -> candidate.reject(null));
+        assertThrows(InvalidTransactionException.class, () -> candidate.reject("   "));
+    }
+
+    @Test
     @DisplayName("vincula correção a transação original")
     void testCorrection_WhenOriginalIdIsProvided_ShouldKeepId() {
         //given

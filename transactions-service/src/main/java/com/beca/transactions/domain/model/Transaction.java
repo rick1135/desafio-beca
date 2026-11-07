@@ -132,4 +132,20 @@ public class Transaction {
     public Instant getCreationDate() {
         return creationDate;
     }
+
+    public Transaction reject(String reason) {
+        return new Transaction(
+                id,
+                type,
+                amount,
+                category,
+                originUserId,
+                destinationUserId,
+                TransactionStatus.REJECTED,
+                reason,
+                originalTransactionId,
+                description,
+                creationDate
+        );
+    }
 }
