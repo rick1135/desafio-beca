@@ -251,7 +251,6 @@ public class TransactionPersistenceAdapterTest {
         salvar(TransactionType.TRANSFER, TransactionStatus.REJECTED, 1L, 2L, data);
         salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 1L, 3L, data);
         salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 2L, 1L, data);
-        salvar(TransactionType.DEPOSIT, TransactionStatus.APPROVED, 1L, 2L, data);
         entityManager.clear();
 
         var recebidas = adapter.findApprovedIncomingTransfersByUserId(2L);

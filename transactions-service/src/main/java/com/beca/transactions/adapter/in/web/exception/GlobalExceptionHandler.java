@@ -41,6 +41,7 @@ public class GlobalExceptionHandler {
             String field = switch (error.getField()) {
                 case "categoryValid" -> "category";
                 case "destinationValid" -> "destinationUserId";
+                case "destinationOnlyForTransfer" -> "destinationUserId";
                 default -> error.getField();
             };
             details.putIfAbsent(field, error.getDefaultMessage());

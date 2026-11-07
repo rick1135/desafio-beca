@@ -2,9 +2,14 @@ package com.beca.transactions.adapter.in.web;
 
 import com.beca.transactions.adapter.in.web.exception.GlobalExceptionHandler;
 import com.beca.transactions.application.usecase.CreateTransactionService;
+import com.beca.transactions.application.usecase.ProcessTransactionService;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
+import com.beca.transactions.domain.port.AccountBalancePort;
+import com.beca.transactions.domain.port.AccountOperationLockPort;
+import com.beca.transactions.domain.port.TransactionRepositoryPort;
+import com.beca.transactions.domain.port.UserLookupPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -96,6 +101,99 @@ class TransactionControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void createsTransferWithRecipient() throws Exception {
+        when(service.create(eq(1L), eq(TransactionType.TRANSFER), cmpEq(new BigDecimal("25.00")),
+                eq("Transferência de teste"), isNull(), eq(2L), isNull()))
+                .thenReturn(new Transaction(42L, TransactionType.TRANSFER, new BigDecimal("25.00"),
+                        null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                        "Transferência de teste", Instant.parse("2026-11-06T12:00:00Z")));
+
+        mvc.perform(post("/transactions")
+                        .header("X-User-Id", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"TRANSFER","amount":25.00,"description":"Transferência de teste","destinationUserId":2}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("TRANSFER"))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.originUserId").value(1))
+                .andExpect(jsonPath("$.destinationUserId").value(2));
+    }
+
+    @Test
+    void createsPurchaseWithCategory() throws Exception {
+        when(service.create(eq(1L), eq(TransactionType.PURCHASE), cmpEq(new BigDecimal("25.00")),
+                eq("Compra de teste"), eq("Alimentação"), isNull(), isNull()))
+                .thenReturn(new Transaction(42L, TransactionType.PURCHASE, new BigDecimal("25.00"),
+                        "Alimentação", 1L, null, TransactionStatus.APPROVED, null, null,
+                        "Compra de teste", Instant.parse("2026-11-06T12:00:00Z")));
+
+        mvc.perform(post("/transactions")
+                        .header("X-User-Id", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"PURCHASE","amount":25.00,"description":"Compra de teste","category":"Alimentação"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("PURCHASE"))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.category").value("Alimentação"));
+    }
+
+    @Test
+    void rejectsTransferWithoutRecipientBeforeCallingService() throws Exception {
+        mvc.perform(post("/transactions")
+                        .header("X-User-Id", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"TRANSFER","amount":25.00,"description":"Transferência de teste"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.destinationUserId").exists());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsDestinationOnPurchaseBeforeCallingService() throws Exception {
+        mvc.perform(post("/transactions")
+                        .header("X-User-Id", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"PURCHASE","amount":25.00,"description":"Compra de teste","category":"Alimentação","destinationUserId":2}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.destinationUserId").exists());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsSelfTransferBeforeAccessingExternalServices() throws Exception {
+        TransactionRepositoryPort repository = mock(TransactionRepositoryPort.class);
+        AccountBalancePort accounts = mock(AccountBalancePort.class);
+        AccountOperationLockPort lock = mock(AccountOperationLockPort.class);
+        UserLookupPort users = mock(UserLookupPort.class);
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new TransactionController(new CreateTransactionService(
+                                accounts, users, new ProcessTransactionService(repository, lock))))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mvc.perform(post("/transactions")
+                        .header("X-User-Id", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"TRANSFER","amount":25.00,"description":"Transferência para si mesmo","destinationUserId":1}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Não é possível realizar transferência para si mesmo"));
+
+        verifyNoInteractions(repository, accounts, lock, users);
     }
 
     private Transaction transaction(TransactionType type, TransactionStatus status, String reason) {

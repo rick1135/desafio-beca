@@ -15,3 +15,6 @@ server:
 
 mock-api:
   base-url: ${MOCK_API_BASE_URL}
+
+user-service:
+  base-url: ${USER_SERVICE_BASE_URL:http://localhost:8080}
