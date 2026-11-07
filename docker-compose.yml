@@ -56,7 +56,10 @@ services:
       SPRING_DATASOURCE_USERNAME: ${TRANSACTION_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TRANSACTION_DB_PASSWORD}
       MOCK_API_BASE_URL: ${MOCK_API_BASE_URL}
+      USER_SERVICE_BASE_URL: http://user-service:8080
     depends_on:
+      user-service:
+        condition: service_started
       transaction-db:
         condition: service_healthy
 

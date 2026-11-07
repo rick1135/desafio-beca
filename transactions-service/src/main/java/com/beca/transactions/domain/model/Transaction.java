@@ -36,18 +36,22 @@ public class Transaction {
         if(type==TransactionType.PURCHASE && category.isBlank()){
             throw new InvalidTransactionException("Categoria é obrigatório para compras");
         }
-        if(originUserId==null) throw new InvalidTransactionException(
-                "Usuário de origem é obrigatório"
-        );
-        if(type==TransactionType.TRANSFER && destinationUserId==null) throw new InvalidTransactionException(
-                "Usuário de destino é obrigatório para transferências"
-        );
+        if (originUserId == null || originUserId <= 0) {
+            throw new InvalidTransactionException("Usuário de origem deve ter ID maior que zero");
+        }
+        if (type == TransactionType.TRANSFER) {
+            if (destinationUserId == null || destinationUserId <= 0) {
+                throw new InvalidTransactionException("Usuário de destino deve ter ID maior que zero");
+            }
+            if (originUserId.equals(destinationUserId)) {
+                throw new InvalidTransactionException("Não é possível realizar transferência para si mesmo");
+            }
+        } else if (destinationUserId != null) {
+            throw new InvalidTransactionException("Usuário de destino é permitido apenas para transferências");
+        }
         if(status==null) throw new InvalidTransactionException("Status da transação não pode ser null");
         if(status==TransactionStatus.REJECTED && (rejectionReason==null|| rejectionReason.isBlank())) throw new InvalidTransactionException(
                 "O motivo da transação ter sido rejeitada é obrigatório"
-        );
-        if(type==TransactionType.TRANSFER && originUserId.equals(destinationUserId)) throw new InvalidTransactionException(
-                "Não é possível realizar transferência para si mesmo"
         );
         if (description == null || description.isBlank()) {
             throw new InvalidTransactionException("Descrição da transação é obrigatória");
@@ -78,7 +82,7 @@ public class Transaction {
         }
         this.type = type;
         this.amount = amount.setScale(2);
-        this.category = defaultCategory(type, category);
+        this.category = id == null ? defaultCategory(type, category) : category;
         this.originUserId = originUserId;
         this.destinationUserId = destinationUserId;
         this.status = status;
@@ -130,6 +134,22 @@ public class Transaction {
 
     public Instant getCreationDate() {
         return creationDate;
+    }
+
+    public Transaction reject(String reason) {
+        return new Transaction(
+                id,
+                type,
+                amount,
+                category,
+                originUserId,
+                destinationUserId,
+                TransactionStatus.REJECTED,
+                reason,
+                originalTransactionId,
+                description,
+                creationDate
+        );
     }
 
     private static String defaultCategory(TransactionType type, String category) {

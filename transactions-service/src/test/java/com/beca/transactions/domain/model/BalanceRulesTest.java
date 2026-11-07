@@ -53,13 +53,10 @@ class BalanceRulesTest {
     }
 
     @Test
-    void incomingListDoesNotCreditAnotherRecipientOrNonTransfer() {
+    void incomingListDoesNotCreditAnotherRecipient() {
         Transaction anotherRecipient = transaction(TransactionType.TRANSFER, TransactionStatus.APPROVED, "75.00");
-        Transaction deposit = new Transaction(null, TransactionType.DEPOSIT, money("50.00"),
-                null, 2L, 1L, TransactionStatus.APPROVED, null, null,
-                "Outro tipo", Instant.parse("2026-11-06T12:00:00Z"));
 
-        var result = rules.calculate(account, List.of(), List.of(), List.of(anotherRecipient, deposit));
+        var result = rules.calculate(account, List.of(), List.of(), List.of(anotherRecipient));
 
         assertEquals(0, money("1000.00").compareTo(result.effectiveBalance()));
         assertEquals(0, money("0.00").compareTo(result.dailySpent()));
