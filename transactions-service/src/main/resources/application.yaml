@@ -18,3 +18,6 @@ mock-api:
 
 user-service:
   base-url: ${USER_SERVICE_BASE_URL:http://localhost:8080}
+
+brasil-api:
+  base-url: ${BRASIL_API_BASE_URL:https://brasilapi.com.br/api}

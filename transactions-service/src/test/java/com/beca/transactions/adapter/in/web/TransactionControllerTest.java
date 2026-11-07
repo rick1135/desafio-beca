@@ -2,12 +2,14 @@ package com.beca.transactions.adapter.in.web;
 
 import com.beca.transactions.adapter.in.web.exception.GlobalExceptionHandler;
 import com.beca.transactions.application.usecase.CreateTransactionService;
+import com.beca.transactions.application.usecase.GetTransactionService;
 import com.beca.transactions.application.usecase.ProcessTransactionService;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.AccountOperationLockPort;
+import com.beca.transactions.domain.port.ExchangeRatePort;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import com.beca.transactions.domain.port.UserLookupPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +34,8 @@ class TransactionControllerTest {
     @BeforeEach
     void setUp() {
         service = mock(CreateTransactionService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new TransactionController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new TransactionController(
+                        service, mock(GetTransactionService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -178,9 +181,11 @@ class TransactionControllerTest {
         AccountBalancePort accounts = mock(AccountBalancePort.class);
         AccountOperationLockPort lock = mock(AccountOperationLockPort.class);
         UserLookupPort users = mock(UserLookupPort.class);
+        ExchangeRatePort exchangeRates = mock(ExchangeRatePort.class);
         mvc = MockMvcBuilders.standaloneSetup(
                         new TransactionController(new CreateTransactionService(
-                                accounts, users, new ProcessTransactionService(repository, lock))))
+                                accounts, users, new ProcessTransactionService(repository, lock),
+                                exchangeRates), mock(GetTransactionService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -193,7 +198,7 @@ class TransactionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Não é possível realizar transferência para si mesmo"));
 
-        verifyNoInteractions(repository, accounts, lock, users);
+        verifyNoInteractions(repository, accounts, lock, users, exchangeRates);
     }
 
     private Transaction transaction(TransactionType type, TransactionStatus status, String reason) {

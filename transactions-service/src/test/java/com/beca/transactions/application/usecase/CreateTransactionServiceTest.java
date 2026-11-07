@@ -3,10 +3,13 @@ package com.beca.transactions.application.usecase;
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.domain.model.AccountBalance;
+import com.beca.transactions.domain.model.ExchangeCurrency;
+import com.beca.transactions.domain.model.ExchangeRate;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
+import com.beca.transactions.domain.port.ExchangeRatePort;
 import com.beca.transactions.domain.port.UserLookupPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,12 +34,58 @@ class CreateTransactionServiceTest {
     @Mock private AccountBalancePort accounts;
     @Mock private UserLookupPort users;
     @Mock private ProcessTransactionService processor;
+    @Mock private ExchangeRatePort exchangeRates;
 
     private CreateTransactionService service;
 
     @BeforeEach
     void setUp() {
-        service = new CreateTransactionService(accounts, users, processor);
+        service = new CreateTransactionService(accounts, users, processor, exchangeRates);
+    }
+
+    @Test
+    @DisplayName("anexa cotações de USD e EUR ao candidato quando BrasilAPI responde")
+    void testCreate_WhenBothExchangeRatesExist_ShouldAttachRatesToCandidate() {
+        // given
+        ExchangeRate usd = new ExchangeRate(ExchangeCurrency.USD, money("5.5013"),
+                LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:06:13"),
+                "FECHAMENTO PTAX");
+        ExchangeRate eur = new ExchangeRate(ExchangeCurrency.EUR, money("6.1317"),
+                LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:06:13"),
+                "FECHAMENTO PTAX");
+        when(exchangeRates.findByCurrencyAndDate(eq(ExchangeCurrency.USD), any()))
+                .thenReturn(Optional.of(usd));
+        when(exchangeRates.findByCurrencyAndDate(eq(ExchangeCurrency.EUR), any()))
+                .thenReturn(Optional.of(eur));
+
+        // when
+        service.create(1L, TransactionType.DEPOSIT, money("100.00"), "Depósito", null, null, null);
+
+        // then
+        ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
+        verify(processor).process(candidate.capture(), isNull(), isNull());
+        assertEquals(java.util.List.of(usd, eur), candidate.getValue().getExchangeRates());
+    }
+
+    @Test
+    @DisplayName("mantém transação sem câmbio parcial quando uma moeda falha")
+    void testCreate_WhenOneExchangeRateFails_ShouldDelegateWithoutPartialRates() {
+        // given
+        ExchangeRate usd = new ExchangeRate(ExchangeCurrency.USD, money("5.5013"),
+                LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:06:13"),
+                "FECHAMENTO PTAX");
+        when(exchangeRates.findByCurrencyAndDate(eq(ExchangeCurrency.USD), any()))
+                .thenReturn(Optional.of(usd));
+        when(exchangeRates.findByCurrencyAndDate(eq(ExchangeCurrency.EUR), any()))
+                .thenThrow(new IllegalStateException("BrasilAPI indisponível"));
+
+        // when
+        service.create(1L, TransactionType.DEPOSIT, money("100.00"), "Depósito", null, null, null);
+
+        // then
+        ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
+        verify(processor).process(candidate.capture(), isNull(), isNull());
+        assertTrue(candidate.getValue().getExchangeRates().isEmpty());
     }
 
     @Test

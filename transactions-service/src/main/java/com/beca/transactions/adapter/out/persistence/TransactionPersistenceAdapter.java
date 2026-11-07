@@ -85,7 +85,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 transaction.getRejectionReason(),
                 transaction.getOriginalTransactionId(),
                 transaction.getDescription(),
-                transaction.getCreationDate()
+                transaction.getCreationDate(),
+                transaction.getExchangeRates()
         );
     }
 
@@ -101,7 +102,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 entity.getRejectionReason(),
                 entity.getOriginalTransactionId(),
                 entity.getDescription(),
-                entity.getCreationDate()
+                entity.getCreationDate(),
+                entity.getExchangeRates()
         );
     }
 }

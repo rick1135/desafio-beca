@@ -6,6 +6,9 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import com.beca.transactions.domain.model.ExchangeRate;
 
 @Entity
 @Table(name = "transactions")
@@ -41,12 +44,23 @@ public class TransactionEntity {
     @Column(nullable = false)
     private Instant creationDate;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "transaction_exchange_rates", joinColumns = @JoinColumn(name = "transaction_id"))
+    private List<ExchangeRateEmbeddable> exchangeRates = new ArrayList<>();
+
     public TransactionEntity() {
     }
 
     public TransactionEntity(Long id, TransactionType type, BigDecimal amount, String category, Long originUserId, Long destinationUserId,
                              TransactionStatus status, String rejectionReason, Long originalTransactionId, String description, Instant creationDate
     ) {
+        this(id, type, amount, category, originUserId, destinationUserId,
+                status, rejectionReason, originalTransactionId, description, creationDate, List.of());
+    }
+
+    public TransactionEntity(Long id, TransactionType type, BigDecimal amount, String category, Long originUserId, Long destinationUserId,
+                             TransactionStatus status, String rejectionReason, Long originalTransactionId, String description, Instant creationDate,
+                             List<ExchangeRate> exchangeRates) {
         this.id = id;
         this.type = type;
         this.amount = amount;
@@ -58,6 +72,7 @@ public class TransactionEntity {
         this.originalTransactionId = originalTransactionId;
         this.description = description;
         this.creationDate = creationDate;
+        this.exchangeRates = exchangeRates.stream().map(ExchangeRateEmbeddable::new).toList();
     }
 
     public Long getId() {
@@ -102,5 +117,9 @@ public class TransactionEntity {
 
     public Instant getCreationDate() {
         return creationDate;
+    }
+
+    public List<ExchangeRate> getExchangeRates() {
+        return exchangeRates.stream().map(ExchangeRateEmbeddable::toDomain).toList();
     }
 }
