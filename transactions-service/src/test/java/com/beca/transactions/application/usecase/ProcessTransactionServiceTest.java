@@ -93,6 +93,25 @@ class ProcessTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("aprova retirada usando saldo de depósito aprovado anteriormente")
+    void testWithdrawal_WhenApprovedDepositIncreasesBalance_ShouldSaveApproved() {
+        // given
+        Transaction deposit = candidate(TransactionType.DEPOSIT, "100.00");
+        Transaction candidate = candidate(TransactionType.WITHDRAW, "120.00");
+        AccountBalance account = account("50.00", "500.00", "500.00");
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(deposit));
+
+        // when
+        processor.process(candidate, account, null);
+
+        // then
+        assertSame(candidate, savedTransaction());
+        assertEquals("Retirada", candidate.getCategory());
+        verify(accountLock).lockForUser(1L);
+        verify(transactions).findApprovedByOriginUserId(1L);
+    }
+
+    @Test
     @DisplayName("aprova retirada com transferência recebida sem contá-la como gasto diário")
     void testWithdrawal_WhenReceivedTransferCoversAmount_ShouldSaveApproved() {
         // given
@@ -146,14 +165,17 @@ class ProcessTransactionServiceTest {
 
     @ParameterizedTest
     @CsvSource({
+            "WITHDRAW, 100.00, 50.00, 500.00, 500.00, 0.00, Saldo insuficiente",
             "TRANSFER, 100.00, 50.00, 500.00, 500.00, 0.00, Saldo insuficiente",
             "PURCHASE, 100.00, 50.00, 500.00, 500.00, 0.00, Saldo insuficiente",
+            "WITHDRAW, 500.01, 1000.00, 800.00, 500.00, 0.00, Limite por transação excedido",
             "TRANSFER, 500.01, 1000.00, 800.00, 500.00, 0.00, Limite por transação excedido",
             "PURCHASE, 500.01, 1000.00, 800.00, 500.00, 0.00, Limite por transação excedido",
+            "WITHDRAW, 100.01, 1000.00, 500.00, 500.00, 400.00, Limite diário excedido",
             "TRANSFER, 100.00, 1000.00, 500.00, 500.00, 450.00, Limite diário excedido",
             "PURCHASE, 100.00, 1000.00, 500.00, 500.00, 450.00, Limite diário excedido"
     })
-    @DisplayName("registra transferência ou compra rejeitada com o motivo correto")
+    @DisplayName("registra saída rejeitada com o motivo correto")
     void testOutflow_WhenBalanceOrLimitFails_ShouldSaveRejection(
             TransactionType type, String amount, String openingBalance, String dailyLimit,
             String transactionLimit, String priorOutflowAmount, String expectedReason
@@ -231,6 +253,7 @@ class ProcessTransactionServiceTest {
         assertEquals(TransactionStatus.REJECTED, saved.getStatus());
         assertEquals(reason, saved.getRejectionReason());
         assertEquals(candidate.getType(), saved.getType());
+        assertEquals(candidate.getCategory(), saved.getCategory());
         assertEquals(candidate.getOriginUserId(), saved.getOriginUserId());
         assertEquals(candidate.getDestinationUserId(), saved.getDestinationUserId());
     }

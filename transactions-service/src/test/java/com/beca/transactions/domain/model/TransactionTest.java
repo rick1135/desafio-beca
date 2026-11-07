@@ -186,6 +186,7 @@ public class TransactionTest {
         );
         //then
         assertEquals(TransactionType.DEPOSIT, transaction.getType());
+        assertEquals("Depósito", transaction.getCategory());
         assertEquals(amount, transaction.getAmount());
         assertEquals(1L, transaction.getOriginUserId());
         assertNull(transaction.getDestinationUserId());
@@ -193,6 +194,25 @@ public class TransactionTest {
         assertNull(transaction.getId());
         assertEquals("Descrição de teste", transaction.getDescription());
         assertEquals(CREATION_DATE, transaction.getCreationDate());
+    }
+
+    @Test
+    @DisplayName("usa categoria padrão para depósito com categoria vazia ou em branco")
+    void testDeposit_WhenCategoryIsBlank_ShouldUseDefaultCategory() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        for (String category : new String[]{"", "   "}) {
+            //when
+            Transaction transaction = new Transaction(
+                    null, TransactionType.DEPOSIT, amount, category,
+                    1L, null, TransactionStatus.APPROVED, null, null,
+                    "Depósito de teste", CREATION_DATE
+            );
+
+            //then
+            assertEquals("Depósito", transaction.getCategory());
+        }
     }
 
     @Test
@@ -209,6 +229,69 @@ public class TransactionTest {
         );
         //then
         assertEquals("Alimentação",  transaction.getCategory());
+    }
+
+    @Test
+    @DisplayName("usa categoria padrão para retirada sem categoria")
+    void testWithdrawal_WhenCategoryIsMissingOrBlank_ShouldUseDefaultCategory() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        for (String category : new String[]{"", "   "}) {
+            //when
+            Transaction transaction = new Transaction(
+                    null, TransactionType.WITHDRAW, amount, category,
+                    1L, null, TransactionStatus.APPROVED, null, null,
+                    "Retirada de teste", CREATION_DATE
+            );
+            //then
+            assertEquals("Retirada", transaction.getCategory());
+        }
+
+        //when
+        Transaction withoutCategory = new Transaction(
+                null, TransactionType.WITHDRAW, amount, null,
+                1L, null, TransactionStatus.REJECTED, "Saldo insuficiente", null,
+                "Retirada de teste", CREATION_DATE
+        );
+        //then
+        assertEquals("Retirada", withoutCategory.getCategory());
+    }
+
+    @Test
+    @DisplayName("mantém categoria informada para depósito e retirada")
+    void testDepositAndWithdrawal_WhenCategoryIsProvided_ShouldKeepCategory() {
+        //given
+        String category = "Ajuste";
+
+        for (TransactionType type : new TransactionType[]{TransactionType.DEPOSIT, TransactionType.WITHDRAW}) {
+            //when
+            Transaction transaction = new Transaction(
+                    null, type, new BigDecimal("25.00"), category,
+                    1L, null, TransactionStatus.APPROVED, null, null,
+                    "Lançamento de teste", CREATION_DATE
+            );
+            //then
+            assertEquals(category, transaction.getCategory());
+        }
+    }
+
+    @Test
+    @DisplayName("não aplica categoria padrão ao reconstruir transação persistida sem categoria")
+    void testDepositAndWithdrawal_WhenPersistedWithoutCategory_ShouldKeepNullCategory() {
+        //given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        for (TransactionType type : new TransactionType[]{TransactionType.DEPOSIT, TransactionType.WITHDRAW}) {
+            //when
+            Transaction persisted = new Transaction(
+                    10L, type, amount, null,
+                    1L, null, TransactionStatus.APPROVED, null, null,
+                    "Registro antigo do banco", CREATION_DATE
+            );
+            //then
+            assertNull(persisted.getCategory());
+        }
     }
 
     @Test
@@ -365,108 +448,173 @@ public class TransactionTest {
 
     @Test
     @DisplayName("rejeita transação sem descrição ou com descrição em branco")
-    void testTransaction_WhenDescriptionIsMissing_ShouldThrowException() {
-        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("10.00"), null, CREATION_DATE));
-        assertEquals("Descrição da transação é obrigatória", missing.getMessage());
+    void testTransaction_WhenDescriptionIsMissingOrBlank_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("10.00");
 
+        //when
+        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
+                () -> createDeposit(amount, null, CREATION_DATE));
         IllegalArgumentException blank = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("10.00"), "   ", CREATION_DATE));
+                () -> createDeposit(amount, "   ", CREATION_DATE));
+
+        //then
+        assertEquals("Descrição da transação é obrigatória", missing.getMessage());
         assertEquals("Descrição da transação é obrigatória", blank.getMessage());
     }
 
     @Test
     @DisplayName("rejeita transação sem data de criação")
     void testTransaction_WhenCreationDateIsMissing_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("10.00");
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("10.00"), "Depósito de teste", null));
+                () -> createDeposit(amount, "Depósito de teste", null));
+
+        //then
         assertEquals("Data da transação é obrigatória", exception.getMessage());
     }
 
     @Test
     @DisplayName("rejeita valor com mais de duas casas decimais")
     void testTransaction_WhenAmountHasExcessDecimalPlaces_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("10.123");
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("10.123"), "Depósito de teste", CREATION_DATE));
+                () -> createDeposit(amount, "Depósito de teste", CREATION_DATE));
+
+        //then
         assertEquals("Valor da transação deve ter no máximo duas casas decimais", exception.getMessage());
     }
 
     @Test
     @DisplayName("rejeita valor maior que a precisão da coluna")
     void testTransaction_WhenAmountExceedsPrecision_ShouldThrowException() {
+        //given
+        BigDecimal amount = new BigDecimal("100000000000000000.00");
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("100000000000000000.00"), "Depósito de teste", CREATION_DATE));
+                () -> createDeposit(amount, "Depósito de teste", CREATION_DATE));
+
+        //then
         assertEquals("Valor da transação excede o limite permitido", exception.getMessage());
     }
 
     @Test
     @DisplayName("aceita zeros excedentes no fim e mantém o valor com duas casas")
     void testTransaction_WhenAmountHasTrailingZero_ShouldCreateTransaction() {
+        //given
         for (String value : new String[]{"10.120", "10.1200", "10.000", "1000.000",
                 "99999999999999999.9900"}) {
             BigDecimal amount = new BigDecimal(value);
 
+            //when
             Transaction transaction = createDeposit(amount, "Depósito de teste", CREATION_DATE);
 
+            //then
             assertEquals(amount.setScale(2), transaction.getAmount());
         }
     }
 
     @Test
-    void deveAceitarDescricaoNoLimiteDoBanco() {
-        String descricao = "a".repeat(255);
-        Transaction transaction = createDeposit(new BigDecimal("10.00"), descricao, CREATION_DATE);
-        assertEquals(descricao, transaction.getDescription());
+    @DisplayName("aceita descrição no limite de 255 caracteres")
+    void testTransaction_WhenDescriptionIsAtMaximumLength_ShouldKeepDescription() {
+        //given
+        String description = "a".repeat(255);
+
+        //when
+        Transaction transaction = createDeposit(new BigDecimal("10.00"), description, CREATION_DATE);
+
+        //then
+        assertEquals(description, transaction.getDescription());
     }
 
     @Test
-    void deveRejeitarDescricaoAcimaDoLimiteDoBanco() {
+    @DisplayName("rejeita descrição acima de 255 caracteres")
+    void testTransaction_WhenDescriptionExceedsMaximumLength_ShouldThrowException() {
+        //given
+        String description = "a".repeat(256);
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> createDeposit(new BigDecimal("10.00"), "a".repeat(256), CREATION_DATE));
+                () -> createDeposit(new BigDecimal("10.00"), description, CREATION_DATE));
+
+        //then
         assertEquals("Descrição deve ter no máximo 255 caracteres", exception.getMessage());
     }
 
     @Test
-    void deveAceitarCategoriaNoLimiteDoBanco() {
-        String categoria = "a".repeat(255);
+    @DisplayName("aceita categoria no limite de 255 caracteres")
+    void testPurchase_WhenCategoryIsAtMaximumLength_ShouldKeepCategory() {
+        //given
+        String category = "a".repeat(255);
+
+        //when
         Transaction transaction = new Transaction(
-                null, TransactionType.PURCHASE, new BigDecimal("10.00"), categoria,
+                null, TransactionType.PURCHASE, new BigDecimal("10.00"), category,
                 1L, null, TransactionStatus.APPROVED, null, null,
                 "Compra de teste", CREATION_DATE
         );
-        assertEquals(categoria, transaction.getCategory());
+
+        //then
+        assertEquals(category, transaction.getCategory());
     }
 
     @Test
-    void deveRejeitarCategoriaAcimaDoLimiteDoBanco() {
+    @DisplayName("rejeita categoria acima de 255 caracteres")
+    void testPurchase_WhenCategoryExceedsMaximumLength_ShouldThrowException() {
+        //given
+        String category = "a".repeat(256);
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> new Transaction(
-                        null, TransactionType.PURCHASE, new BigDecimal("10.00"), "a".repeat(256),
+                        null, TransactionType.PURCHASE, new BigDecimal("10.00"), category,
                         1L, null, TransactionStatus.APPROVED, null, null,
                         "Compra de teste", CREATION_DATE
                 ));
+
+        //then
         assertEquals("Categoria deve ter no máximo 255 caracteres", exception.getMessage());
     }
 
     @Test
-    void deveAceitarMotivoDeRejeicaoNoLimiteDoBanco() {
-        String motivo = "a".repeat(255);
+    @DisplayName("aceita motivo de rejeição no limite de 255 caracteres")
+    void testRejectedTransaction_WhenReasonIsAtMaximumLength_ShouldKeepReason() {
+        //given
+        String reason = "a".repeat(255);
+
+        //when
         Transaction transaction = new Transaction(
                 null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
-                1L, null, TransactionStatus.REJECTED, motivo, null,
+                1L, null, TransactionStatus.REJECTED, reason, null,
                 "Retirada de teste", CREATION_DATE
         );
-        assertEquals(motivo, transaction.getRejectionReason());
+
+        //then
+        assertEquals(reason, transaction.getRejectionReason());
     }
 
     @Test
-    void deveRejeitarMotivoDeRejeicaoAcimaDoLimiteDoBanco() {
+    @DisplayName("rejeita motivo de rejeição acima de 255 caracteres")
+    void testRejectedTransaction_WhenReasonExceedsMaximumLength_ShouldThrowException() {
+        //given
+        String reason = "a".repeat(256);
+
+        //when
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> new Transaction(
                         null, TransactionType.WITHDRAW, new BigDecimal("10.00"), null,
-                        1L, null, TransactionStatus.REJECTED, "a".repeat(256), null,
+                        1L, null, TransactionStatus.REJECTED, reason, null,
                         "Retirada de teste", CREATION_DATE
                 ));
+
+        //then
         assertEquals("Motivo da rejeição deve ter no máximo 255 caracteres", exception.getMessage());
     }
 

@@ -38,7 +38,7 @@ class CreateTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("delega depósito sem consultar MS1 ou MockAPI")
+    @DisplayName("delega depósito sem consultar MS1 ou MockAPI e aplica categoria padrão")
     void testDeposit_WhenDataIsValid_ShouldDelegateWithoutExternalLookup() {
         // given
         BigDecimal amount = money("25.00");
@@ -51,12 +51,13 @@ class CreateTransactionServiceTest {
         verify(processor).process(candidate.capture(), isNull(), isNull());
         assertEquals(TransactionType.DEPOSIT, candidate.getValue().getType());
         assertEquals(amount, candidate.getValue().getAmount());
+        assertEquals("Depósito", candidate.getValue().getCategory());
         assertEquals(TransactionStatus.APPROVED, candidate.getValue().getStatus());
         verifyNoInteractions(accounts, users);
     }
 
     @Test
-    @DisplayName("delega retirada com a conta consultada na MockAPI")
+    @DisplayName("delega retirada com a conta consultada na MockAPI e categoria padrão")
     void testWithdrawal_WhenAccountExists_ShouldDelegateCandidateAndAccount() {
         // given
         AccountBalance account = account("100.00", "100.00", "100.00");
@@ -70,6 +71,7 @@ class CreateTransactionServiceTest {
         ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
         verify(processor).process(candidate.capture(), same(account), isNull());
         assertEquals(TransactionType.WITHDRAW, candidate.getValue().getType());
+        assertEquals("Retirada", candidate.getValue().getCategory());
         assertEquals(1L, candidate.getValue().getOriginUserId());
         verifyNoInteractions(users);
     }
@@ -90,7 +92,7 @@ class CreateTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("delega rejeição quando a MockAPI está indisponível")
+    @DisplayName("delega rejeição de compra quando a MockAPI está indisponível")
     void testPurchase_WhenMockApiIsUnavailable_ShouldDelegateRejection() {
         // given
         when(accounts.findByUserId(1L)).thenThrow(new ExternalServiceUnavailableException(
@@ -103,6 +105,25 @@ class CreateTransactionServiceTest {
         // then
         verify(processor).process(any(Transaction.class), isNull(), eq(
                 "Serviço externo de consulta de saldo e limites temporariamente indisponível"));
+        verifyNoInteractions(users);
+    }
+
+    @Test
+    @DisplayName("delega rejeição de retirada quando a MockAPI está indisponível")
+    void testWithdrawal_WhenMockApiIsUnavailable_ShouldDelegateRejection() {
+        // given
+        when(accounts.findByUserId(1L)).thenThrow(new ExternalServiceUnavailableException(
+                "MockAPI", new RuntimeException("timeout")));
+
+        // when
+        service.create(1L, TransactionType.WITHDRAW, money("25.00"),
+                "Retirada", null, null, null);
+
+        // then
+        ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
+        verify(processor).process(candidate.capture(), isNull(), eq(
+                "Serviço externo de consulta de saldo e limites temporariamente indisponível"));
+        assertEquals("Retirada", candidate.getValue().getCategory());
         verifyNoInteractions(users);
     }
 
