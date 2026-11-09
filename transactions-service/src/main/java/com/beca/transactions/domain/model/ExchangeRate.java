@@ -1,6 +1,7 @@
 package com.beca.transactions.domain.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -27,5 +28,12 @@ public record ExchangeRate(
         if (bulletinType == null || bulletinType.isBlank()) {
             throw new IllegalArgumentException("Tipo do boletim é obrigatório");
         }
+    }
+
+    public BigDecimal convertFromBrl(BigDecimal amountInBrl) {
+        if (amountInBrl == null || amountInBrl.signum() < 0) {
+            throw new IllegalArgumentException("Valor em reais deve ser maior ou igual a zero");
+        }
+        return amountInBrl.divide(sellingRate, 2, RoundingMode.HALF_UP);
     }
 }

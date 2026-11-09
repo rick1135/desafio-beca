@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,6 +20,7 @@ import java.util.Optional;
 
 @Component
 public class BrasilApiExchangeRateAdapter implements ExchangeRatePort {
+    private static final int MAX_DAYS_BACK = 5;
     private static final Logger log = LoggerFactory.getLogger(BrasilApiExchangeRateAdapter.class);
     private final RestClient client;
 
@@ -34,36 +36,46 @@ public class BrasilApiExchangeRateAdapter implements ExchangeRatePort {
         if (currency == null || date == null) {
             throw new IllegalArgumentException("Moeda e data são obrigatórias");
         }
-        try {
-            QuoteResponse response = client.get()
-                    .uri("/cambio/v1/cotacao/{currency}/{date}", currency, date)
-                    .retrieve().body(QuoteResponse.class);
-            if (response == null || !currency.name().equals(response.currency())
-                    || response.date() == null || response.quotes() == null
-                    || response.quotes().isEmpty()) {
+        for (int daysBack = 0; daysBack <= MAX_DAYS_BACK; daysBack++) {
+            LocalDate requestedDate = date.minusDays(daysBack);
+            try {
+                return readQuote(currency, requestedDate);
+            } catch (HttpClientErrorException.NotFound ex) {
+                //tenta o dia anterior se a atual não tiver no boletim
+            } catch (RuntimeException ex) {
+                log.warn("Cotação {} indisponível para {}: {}", currency, requestedDate, ex.toString());
                 return Optional.empty();
             }
-            Quote chosen = null;
-            for (Quote quote : response.quotes()) {
-                if (quote != null && "FECHAMENTO PTAX".equals(quote.bulletinType())) {
-                    chosen = quote;
-                }
-            }
-            if (chosen == null) {
-                chosen = response.quotes().getLast();
-            }
-            if (chosen == null || chosen.sellingRate() == null
-                    || chosen.sellingRate().signum() <= 0) {
-                return Optional.empty();
-            }
-            return Optional.of(new ExchangeRate(currency, chosen.sellingRate(),
-                    LocalDate.parse(response.date()),
-                    LocalDateTime.parse(chosen.quotedAt().replace(' ', 'T')),
-                    chosen.bulletinType()));
-        } catch (RuntimeException ex) {
-            log.warn("Cotação {} indisponível para {}: {}", currency, date, ex.toString());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ExchangeRate> readQuote(ExchangeCurrency currency, LocalDate date) {
+        QuoteResponse response = client.get()
+                .uri("/cambio/v1/cotacao/{currency}/{date}", currency, date)
+                .retrieve().body(QuoteResponse.class);
+        if (response == null || !currency.name().equals(response.currency())
+                || response.date() == null || response.quotes() == null
+                || response.quotes().isEmpty()) {
             return Optional.empty();
         }
+        Quote chosen = null;
+        for (Quote quote : response.quotes()) {
+            if (quote != null && "FECHAMENTO PTAX".equals(quote.bulletinType())) {
+                chosen = quote;
+            }
+        }
+        if (chosen == null) {
+            chosen = response.quotes().getLast();
+        }
+        if (chosen == null || chosen.sellingRate() == null
+                || chosen.sellingRate().signum() <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new ExchangeRate(currency, chosen.sellingRate(),
+                LocalDate.parse(response.date()),
+                LocalDateTime.parse(chosen.quotedAt().replace(' ', 'T')),
+                chosen.bulletinType()));
     }
 
     private record QuoteResponse(

@@ -18,6 +18,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 
 @Service
 public class CreateTransactionService {
@@ -73,15 +75,22 @@ public class CreateTransactionService {
 
     private List<ExchangeRate> loadExchangeRates(Instant createdAt) {
         LocalDate date = LocalDate.ofInstant(createdAt, ZoneId.of("America/Sao_Paulo"));
-        try {
-            Optional<ExchangeRate> usd = exchangeRates.findByCurrencyAndDate(ExchangeCurrency.USD, date);
-            Optional<ExchangeRate> eur = exchangeRates.findByCurrencyAndDate(ExchangeCurrency.EUR, date);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var usdTask = executor.submit(() -> exchangeRates.findByCurrencyAndDate(ExchangeCurrency.USD, date));
+            var eurTask = executor.submit(() -> exchangeRates.findByCurrencyAndDate(ExchangeCurrency.EUR, date));
+            Optional<ExchangeRate> usd = usdTask.get();
+            Optional<ExchangeRate> eur = eurTask.get();
             if (usd.isEmpty() || eur.isEmpty()
                     || usd.get().currency() != ExchangeCurrency.USD
                     || eur.get().currency() != ExchangeCurrency.EUR) {
                 return List.of();
             }
             return List.of(usd.get(), eur.get());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (ExecutionException ex) {
+            return List.of();
         } catch (RuntimeException ex) {
             return List.of();
         }

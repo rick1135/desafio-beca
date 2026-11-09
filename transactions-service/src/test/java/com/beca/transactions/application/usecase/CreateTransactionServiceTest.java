@@ -24,6 +24,8 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -65,6 +67,31 @@ class CreateTransactionServiceTest {
         ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
         verify(processor).process(candidate.capture(), isNull(), isNull());
         assertEquals(java.util.List.of(usd, eur), candidate.getValue().getExchangeRates());
+    }
+
+    @Test
+    @DisplayName("consulta cotações de USD e EUR em paralelo")
+    void testCreate_WhenFetchingExchangeRates_ShouldQueryBothCurrenciesConcurrently() {
+        // given
+        CountDownLatch bothStarted = new CountDownLatch(2);
+        when(exchangeRates.findByCurrencyAndDate(any(), any())).thenAnswer(invocation -> {
+            ExchangeCurrency currency = invocation.getArgument(0);
+            bothStarted.countDown();
+            if (!bothStarted.await(2, TimeUnit.SECONDS)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ExchangeRate(currency, money("5.00"),
+                    LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:00:00"),
+                    "FECHAMENTO PTAX"));
+        });
+
+        // when
+        service.create(1L, TransactionType.DEPOSIT, money("100.00"), "Depósito", null, null, null);
+
+        // then
+        ArgumentCaptor<Transaction> candidate = ArgumentCaptor.forClass(Transaction.class);
+        verify(processor).process(candidate.capture(), isNull(), isNull());
+        assertEquals(2, candidate.getValue().getExchangeRates().size());
     }
 
     @Test

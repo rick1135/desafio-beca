@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.math.RoundingMode;
 import java.util.List;
 
 public record TransactionResponse(
@@ -43,7 +42,7 @@ public record TransactionResponse(
 
     private static ConvertedAmount converted(BigDecimal amount, ExchangeRate rate) {
         return new ConvertedAmount(rate.currency(),
-                amount.divide(rate.sellingRate(), 2, RoundingMode.HALF_UP),
+                rate.convertFromBrl(amount),
                 rate.sellingRate(), rate.rateDate(), rate.quotedAt(), rate.bulletinType());
     }
 

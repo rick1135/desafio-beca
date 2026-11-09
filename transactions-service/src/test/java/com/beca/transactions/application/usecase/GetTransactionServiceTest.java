@@ -60,6 +60,36 @@ class GetTransactionServiceTest {
                 () -> new GetTransactionService(transactions).getById(42L, 2L));
     }
 
+    @Test
+    @DisplayName("permite que o destinatário consulte transferência aprovada")
+    void testGetById_WhenUserIsRecipientOfApprovedTransfer_ShouldReturnTransaction() {
+        // given
+        Transaction transfer = new Transaction(42L, TransactionType.TRANSFER,
+                new BigDecimal("100.00"), null, 1L, 2L, TransactionStatus.APPROVED,
+                null, null, "Transferência", Instant.parse("2026-11-06T12:00:00Z"));
+        when(transactions.findById(42L)).thenReturn(Optional.of(transfer));
+
+        // when
+        Transaction found = new GetTransactionService(transactions).getById(42L, 2L);
+
+        // then
+        assertSame(transfer, found);
+    }
+
+    @Test
+    @DisplayName("bloqueia acesso do destinatário a transferência rejeitada")
+    void testGetById_WhenUserIsRecipientOfRejectedTransfer_ShouldThrowForbidden() {
+        // given
+        Transaction transfer = new Transaction(42L, TransactionType.TRANSFER,
+                new BigDecimal("100.00"), null, 1L, 2L, TransactionStatus.REJECTED,
+                "Saldo insuficiente", null, "Transferência", Instant.parse("2026-11-06T12:00:00Z"));
+        when(transactions.findById(42L)).thenReturn(Optional.of(transfer));
+
+        // when then
+        assertThrows(ForbiddenTransactionAccessException.class,
+                () -> new GetTransactionService(transactions).getById(42L, 2L));
+    }
+
     private Transaction transaction(Long originUserId) {
         return new Transaction(42L, TransactionType.DEPOSIT, new BigDecimal("100.00"),
                 "Depósito", originUserId, null, TransactionStatus.APPROVED, null, null,
