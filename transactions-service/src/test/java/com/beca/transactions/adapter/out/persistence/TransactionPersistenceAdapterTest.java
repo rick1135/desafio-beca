@@ -305,6 +305,33 @@ public class TransactionPersistenceAdapterTest {
         assertTrue(adapter.findApprovedIncomingTransfersByUserId(3L).isEmpty());
     }
 
+    @Test
+    void deveBuscarTransacoesVisiveisDoUsuarioOrdenadasPorDataEIdDecrescentes() {
+        // given
+        Instant t1 = Instant.parse("2026-11-06T10:00:00Z");
+        Instant t2 = Instant.parse("2026-11-06T12:00:00Z");
+
+        Transaction propriaAntiga = salvar(TransactionType.DEPOSIT, TransactionStatus.APPROVED, 1L, t1);
+        Transaction propriaRejeitada = salvar(TransactionType.WITHDRAW, TransactionStatus.REJECTED, 1L, t2);
+        Transaction transferenciaRecebidaAprovada = salvar(TransactionType.TRANSFER, TransactionStatus.APPROVED, 2L, 1L, t2);
+
+        // não devem aparecer para o user 1
+        salvar(TransactionType.TRANSFER, TransactionStatus.REJECTED, 2L, 1L, t2);
+        salvar(TransactionType.DEPOSIT, TransactionStatus.APPROVED, 2L, t2);
+
+        entityManager.clear();
+
+        // when
+        List<Transaction> visiveis = adapter.findVisibleByUserId(1L);
+
+        // then
+        assertEquals(List.of(
+                transferenciaRecebidaAprovada.getId(),
+                propriaRejeitada.getId(),
+                propriaAntiga.getId()
+        ), visiveis.stream().map(Transaction::getId).toList());
+    }
+
     private Transaction salvar(
             TransactionType type,
             TransactionStatus status,

@@ -14,4 +14,5 @@ public interface TransactionRepositoryPort {
             Long userId, Instant startInclusive, Instant endExclusive
     );
     List<Transaction> findApprovedIncomingTransfersByUserId(Long userId);
+    List<Transaction> findVisibleByUserId(Long userId);
 }
