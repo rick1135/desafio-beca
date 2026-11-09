@@ -5,14 +5,16 @@ import com.beca.transactions.adapter.in.web.dto.TransactionResponse;
 import com.beca.transactions.application.usecase.CreateTransactionService;
 import com.beca.transactions.application.usecase.GetTransactionService;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
+import com.beca.transactions.domain.model.AuthenticatedUser;
 import com.beca.transactions.domain.model.Transaction;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,17 +32,14 @@ public class TransactionController {
         this.getTransactionService = getTransactionService;
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<TransactionResponse> create(
-            @RequestHeader("X-User-Id") Long userId,
+            @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody CreateTransactionRequest request
     ) {
-        if (userId <= 0) {
-            throw new InvalidTransactionException("ID do usuário inválido");
-        }
 
         Transaction saved = createTransactionService.create(
-                userId,
+                user.id(),
                 request.type(),
                 request.amount(),
                 request.description(),
@@ -56,10 +55,10 @@ public class TransactionController {
 
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> getById(@PathVariable Long id,
-                                                       @RequestHeader("X-User-Id") Long userId) {
-        if (id <= 0 || userId <= 0) {
+                                                       @AuthenticationPrincipal AuthenticatedUser user) {
+        if (id <= 0) {
             throw new InvalidTransactionException("ID inválido");
         }
-        return ResponseEntity.ok(TransactionResponse.from(getTransactionService.getById(id, userId)));
+        return ResponseEntity.ok(TransactionResponse.from(getTransactionService.getById(id, user.id())));
     }
 }

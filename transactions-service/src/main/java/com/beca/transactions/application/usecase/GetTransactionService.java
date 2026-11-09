@@ -16,15 +16,23 @@ public class GetTransactionService {
         this.transactions = transactions;
     }
 
-    public Transaction getById(Long id, Long userId) {
+    public Transaction getById(Long id, Long authenticatedUserId) {
         Transaction transaction = transactions.findById(id)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
-        boolean isRecipientOfApprovedTransfer = transaction.getType() == TransactionType.TRANSFER
-                && transaction.getStatus() == TransactionStatus.APPROVED
-                && userId.equals(transaction.getDestinationUserId());
-        if (!transaction.getOriginUserId().equals(userId) && !isRecipientOfApprovedTransfer) {
+
+        if (!canAccess(transaction, authenticatedUserId)) {
             throw new ForbiddenTransactionAccessException();
         }
+
         return transaction;
+    }
+
+    private boolean canAccess(Transaction transaction, Long userId) {
+        if (transaction.getOriginUserId().equals(userId)) {
+            return true;
+        }
+        return transaction.getType() == TransactionType.TRANSFER
+                && transaction.getStatus() == TransactionStatus.APPROVED
+                && userId.equals(transaction.getDestinationUserId());
     }
 }

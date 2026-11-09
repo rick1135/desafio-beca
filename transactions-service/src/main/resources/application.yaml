@@ -18,6 +18,8 @@ mock-api:
 
 user-service:
   base-url: ${USER_SERVICE_BASE_URL:http://localhost:8080}
+  connect-timeout-ms: ${USER_SERVICE_CONNECT_TIMEOUT_MS:3000}
+  read-timeout-ms: ${USER_SERVICE_READ_TIMEOUT_MS:3000}
 
 brasil-api:
   base-url: ${BRASIL_API_BASE_URL:https://brasilapi.com.br/api}

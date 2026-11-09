@@ -1,6 +1,7 @@
 package com.beca.transactions.adapter.out.users;
 
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
+import com.beca.transactions.config.UserServiceClientConfig;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +34,9 @@ class UserServiceUserLookupAdapterTest {
             try (var out = exchange.getResponseBody()) { out.write(bytes); }
         });
         server.start();
-        adapter = new UserServiceUserLookupAdapter("http://127.0.0.1:" + server.getAddress().getPort());
+        adapter = new UserServiceUserLookupAdapter(
+                new UserServiceClientConfig().userServiceRestClient(
+                        "http://127.0.0.1:" + server.getAddress().getPort(), 3000, 3000));
     }
 
     @AfterEach

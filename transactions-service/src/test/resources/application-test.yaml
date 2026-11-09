@@ -17,3 +17,5 @@ user-service:
 
 brasil-api:
   base-url: http://localhost:9999
+
+INTERNAL_AUTH_KEY: chave-de-teste
