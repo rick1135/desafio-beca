@@ -25,6 +25,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://user-db:5432/${USER_DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${USER_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${USER_DB_PASSWORD}
+      INTERNAL_AUTH_KEY: "${INTERNAL_AUTH_KEY:-}"
     depends_on:
       user-db:
         condition: service_healthy
@@ -57,6 +58,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${TRANSACTION_DB_PASSWORD}
       MOCK_API_BASE_URL: ${MOCK_API_BASE_URL}
       USER_SERVICE_BASE_URL: http://user-service:8080
+      INTERNAL_AUTH_KEY: "${INTERNAL_AUTH_KEY:-}"
       BRASIL_API_BASE_URL: ${BRASIL_API_BASE_URL:-https://brasilapi.com.br/api}
     depends_on:
       user-service:

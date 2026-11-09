@@ -10,6 +10,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,10 +22,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AuthenticationController.class)
+@WebMvcTest(controllers = AuthenticationController.class, properties = "INTERNAL_AUTH_KEY=chave-de-teste")
 @Import(SecurityConfig.class)
 @EnableWebSecurity
 class AuthenticationControllerTest {
+    private static final String KEY_HEADER = "X-Internal-Auth-Key";
+    private static final String VALID_KEY = "chave-de-teste";
+
     @Autowired
     private MockMvc mvc;
 
@@ -41,6 +45,7 @@ class AuthenticationControllerTest {
 
         // when / then
         mvc.perform(post("/internal/auth/validate")
+                        .header(KEY_HEADER, VALID_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"ana@example.com","senha":"Senha123"}
@@ -65,6 +70,7 @@ class AuthenticationControllerTest {
 
         // when / then
         mvc.perform(post("/internal/auth/validate")
+                        .header(KEY_HEADER, VALID_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"ana@example.com","senha":"senha-errada"}
@@ -78,6 +84,60 @@ class AuthenticationControllerTest {
     }
 
     @Test
+    @DisplayName("deve retornar 503 quando o serviço de autenticação estiver indisponível")
+    void returnsServiceUnavailableForAuthenticationFailure() throws Exception {
+        // given
+        given(authenticateUserService.authenticate("ana@example.com", "Senha123"))
+                .willThrow(new InternalAuthenticationServiceException("Banco indisponível"));
+
+        // when / then
+        mvc.perform(post("/internal/auth/validate")
+                        .header(KEY_HEADER, VALID_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"ana@example.com","senha":"Senha123"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("Serviço de autenticação indisponível no momento."));
+    }
+
+    @Test
+    @DisplayName("deve retornar 403 sem chave interna e sem consultar a autenticação")
+    void rejectsMissingInternalKey() throws Exception {
+        // given
+        String request = """
+                {"email":"ana@example.com","senha":"Senha123"}
+                """;
+
+        // when / then
+        mvc.perform(post("/internal/auth/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(authenticateUserService);
+    }
+
+    @Test
+    @DisplayName("deve retornar 403 com chave interna inválida e sem consultar a autenticação")
+    void rejectsInvalidInternalKey() throws Exception {
+        // given
+        String request = """
+                {"email":"ana@example.com","senha":"Senha123"}
+                """;
+
+        // when / then
+        mvc.perform(post("/internal/auth/validate")
+                        .header(KEY_HEADER, "chave-incorreta")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(authenticateUserService);
+    }
+
+    @Test
     @DisplayName("deve retornar 400 e identificar senha ausente")
     void returnsBadRequestForMissingPassword() throws Exception {
         // given
@@ -87,6 +147,7 @@ class AuthenticationControllerTest {
 
         // when / then
         mvc.perform(post("/internal/auth/validate")
+                        .header(KEY_HEADER, VALID_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isBadRequest())
