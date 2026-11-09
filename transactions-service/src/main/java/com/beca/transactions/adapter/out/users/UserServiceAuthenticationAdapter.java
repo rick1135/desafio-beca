@@ -3,8 +3,10 @@ package com.beca.transactions.adapter.out.users;
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
 import com.beca.transactions.domain.model.AuthenticatedUser;
 import com.beca.transactions.domain.port.UserAuthenticationPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.web.client.HttpClientErrorException;
@@ -15,20 +17,14 @@ import java.util.Optional;
 
 @Component
 public class UserServiceAuthenticationAdapter implements UserAuthenticationPort {
+    private static final Logger log = LoggerFactory.getLogger(UserServiceAuthenticationAdapter.class);
     private final RestClient client;
     private final String internalAuthKey;
 
-    public UserServiceAuthenticationAdapter(@Value("${user-service.base-url}") String baseUrl,
+    public UserServiceAuthenticationAdapter(@Qualifier("userServiceRestClient") RestClient client,
                                             @Value("${INTERNAL_AUTH_KEY:}") String internalAuthKey){
         Assert.hasText(internalAuthKey, "Configure a variável INTERNAL_AUTH_KEY para autenticar no MS1");
-        var requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(3000);
-        requestFactory.setReadTimeout(3000);
-
-        this.client = RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(requestFactory)
-                .build();
+        this.client = client;
         this.internalAuthKey = internalAuthKey;
     }
 
@@ -62,6 +58,10 @@ public class UserServiceAuthenticationAdapter implements UserAuthenticationPort 
         } catch (HttpClientErrorException.Unauthorized
                  | HttpClientErrorException.BadRequest ex) {
             return Optional.empty();
+
+        } catch (HttpClientErrorException.Forbidden ex) {
+            log.error("MS1 recusou a INTERNAL_AUTH_KEY durante a autenticação");
+            throw new ExternalServiceUnavailableException("MS1 de usuários", ex);
 
         } catch (RestClientException ex) {
             throw new ExternalServiceUnavailableException("MS1 de usuários", ex);

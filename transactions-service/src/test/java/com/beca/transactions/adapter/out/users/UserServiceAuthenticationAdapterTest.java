@@ -2,6 +2,7 @@ package com.beca.transactions.adapter.out.users;
 
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
 import com.beca.transactions.domain.model.AuthenticatedUser;
+import com.beca.transactions.config.UserServiceClientConfig;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,8 @@ class UserServiceAuthenticationAdapterTest {
         });
         server.start();
         adapter = new UserServiceAuthenticationAdapter(
-                "http://127.0.0.1:" + server.getAddress().getPort(),
+                new UserServiceClientConfig().userServiceRestClient(
+                        "http://127.0.0.1:" + server.getAddress().getPort(), 3000, 3000),
                 "chave-interna-teste"
         );
     }
@@ -101,5 +103,16 @@ class UserServiceAuthenticationAdapterTest {
             assertThrows(ExternalServiceUnavailableException.class,
                     () -> adapter.authenticate("ana@example.com", "Senha123"));
         }
+    }
+
+    @Test
+    @DisplayName("trata conexão recusada pelo MS1 como indisponibilidade")
+    void testAuthenticate_WhenConnectionIsRefused_ShouldThrowExternalFailure() {
+        // given
+        server.stop(0);
+
+        // when / then
+        assertThrows(ExternalServiceUnavailableException.class,
+                () -> adapter.authenticate("ana@example.com", "Senha123"));
     }
 }

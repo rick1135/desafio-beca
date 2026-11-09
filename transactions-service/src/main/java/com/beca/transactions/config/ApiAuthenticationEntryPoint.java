@@ -12,12 +12,15 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 import org.springframework.security.core.AuthenticationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @Component
 public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
+    private static final Logger log = LoggerFactory.getLogger(ApiAuthenticationEntryPoint.class);
     private final JsonMapper jsonMapper;
 
     public ApiAuthenticationEntryPoint(JsonMapper jsonMapper) {
@@ -27,6 +30,9 @@ public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException{
         boolean serviceUnavailable = exception instanceof AuthenticationServiceException;
+        if (serviceUnavailable) {
+            log.warn("Falha ao autenticar no MS1", exception);
+        }
 
         HttpStatus status = serviceUnavailable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.UNAUTHORIZED;
 
