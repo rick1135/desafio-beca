@@ -5,6 +5,7 @@ import com.beca.userservice.application.exception.DuplicateEmailException;
 import com.beca.userservice.application.exception.UserNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -55,5 +56,16 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthentication() {
+        ApiErrorResponse body = new ApiErrorResponse(
+                401,
+                "Unauthorized",
+                "Credenciais inválidas",
+                Map.of()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 }
