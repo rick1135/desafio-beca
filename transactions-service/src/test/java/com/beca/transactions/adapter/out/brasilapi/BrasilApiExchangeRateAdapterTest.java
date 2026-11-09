@@ -96,6 +96,18 @@ class BrasilApiExchangeRateAdapterTest {
         assertEquals("/api/cambio/v1/cotacao/USD/2026-11-01", requestedPaths.getLast());
     }
 
+    @Test
+    void stopsImmediatelyWhenNon404OccursAfter404() {
+        previousDayBody = "{}";
+        status = 503;
+
+        assertTrue(adapter.findByCurrencyAndDate(ExchangeCurrency.USD,
+                LocalDate.parse("2026-11-06")).isEmpty());
+        assertEquals(List.of(
+                "/api/cambio/v1/cotacao/USD/2026-11-06",
+                "/api/cambio/v1/cotacao/USD/2026-11-05"), requestedPaths);
+    }
+
     private String response(String currency, String quotes) {
         return response(currency, quotes, "2026-11-06");
     }

@@ -36,18 +36,21 @@ public class BrasilApiExchangeRateAdapter implements ExchangeRatePort {
         if (currency == null || date == null) {
             throw new IllegalArgumentException("Moeda e data são obrigatórias");
         }
-        for (int daysBack = 0; daysBack <= MAX_DAYS_BACK; daysBack++) {
-            LocalDate requestedDate = date.minusDays(daysBack);
-            try {
-                return readQuote(currency, requestedDate);
-            } catch (HttpClientErrorException.NotFound ex) {
-                //tenta o dia anterior se a atual não tiver no boletim
-            } catch (RuntimeException ex) {
-                log.warn("Cotação {} indisponível para {}: {}", currency, requestedDate, ex.toString());
-                return Optional.empty();
+        LocalDate requestedDate = date;
+        try {
+            for (int daysBack = 0; daysBack <= MAX_DAYS_BACK; daysBack++) {
+                requestedDate = date.minusDays(daysBack);
+                try {
+                    return readQuote(currency, requestedDate);
+                } catch (HttpClientErrorException.NotFound ex) {
+                    // sem boletim na data consultada, tenta somente o dia anterior no 404
+                }
             }
+            return Optional.empty();
+        } catch (RuntimeException ex) {
+            log.warn("Cotação {} indisponível para {}: {}", currency, requestedDate, ex.toString());
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     private Optional<ExchangeRate> readQuote(ExchangeCurrency currency, LocalDate date) {
