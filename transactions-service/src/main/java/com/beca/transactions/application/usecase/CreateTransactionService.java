@@ -5,12 +5,21 @@ import com.beca.transactions.domain.model.AccountBalance;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
+import com.beca.transactions.domain.model.ExchangeCurrency;
+import com.beca.transactions.domain.model.ExchangeRate;
 import com.beca.transactions.domain.port.AccountBalancePort;
+import com.beca.transactions.domain.port.ExchangeRatePort;
 import com.beca.transactions.domain.port.UserLookupPort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 
 @Service
 public class CreateTransactionService {
@@ -20,12 +29,15 @@ public class CreateTransactionService {
     private final AccountBalancePort accounts;
     private final UserLookupPort users;
     private final ProcessTransactionService processTransactionService;
+    private final ExchangeRatePort exchangeRates;
 
     public CreateTransactionService(AccountBalancePort accounts, UserLookupPort users,
-                                    ProcessTransactionService processTransactionService) {
+                                    ProcessTransactionService processTransactionService,
+                                    ExchangeRatePort exchangeRates) {
         this.accounts = accounts;
         this.users = users;
         this.processTransactionService = processTransactionService;
+        this.exchangeRates = exchangeRates;
     }
 
     public Transaction create(Long originUserId, TransactionType type, BigDecimal amount,
@@ -36,6 +48,7 @@ public class CreateTransactionService {
                 null, type, amount, category, originUserId, destinationUserId,
                 TransactionStatus.APPROVED, null, originalTransactionId, description, now
         );
+        candidate = candidate.withExchangeRates(loadExchangeRates(now));
         String rejectionReason = null;
         AccountBalance account = null;
 
@@ -58,5 +71,28 @@ public class CreateTransactionService {
         }
 
         return processTransactionService.process(candidate, account, rejectionReason);
+    }
+
+    private List<ExchangeRate> loadExchangeRates(Instant createdAt) {
+        LocalDate date = LocalDate.ofInstant(createdAt, ZoneId.of("America/Sao_Paulo"));
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var usdTask = executor.submit(() -> exchangeRates.findByCurrencyAndDate(ExchangeCurrency.USD, date));
+            var eurTask = executor.submit(() -> exchangeRates.findByCurrencyAndDate(ExchangeCurrency.EUR, date));
+            Optional<ExchangeRate> usd = usdTask.get();
+            Optional<ExchangeRate> eur = eurTask.get();
+            if (usd.isEmpty() || eur.isEmpty()
+                    || usd.get().currency() != ExchangeCurrency.USD
+                    || eur.get().currency() != ExchangeCurrency.EUR) {
+                return List.of();
+            }
+            return List.of(usd.get(), eur.get());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (ExecutionException ex) {
+            return List.of();
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
     }
 }

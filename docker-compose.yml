@@ -57,6 +57,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${TRANSACTION_DB_PASSWORD}
       MOCK_API_BASE_URL: ${MOCK_API_BASE_URL}
       USER_SERVICE_BASE_URL: http://user-service:8080
+      BRASIL_API_BASE_URL: ${BRASIL_API_BASE_URL:-https://brasilapi.com.br/api}
     depends_on:
       user-service:
         condition: service_started

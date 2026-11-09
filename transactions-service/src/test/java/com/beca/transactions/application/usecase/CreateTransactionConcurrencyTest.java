@@ -6,6 +6,7 @@ import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
+import com.beca.transactions.domain.port.ExchangeRatePort;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +40,7 @@ class CreateTransactionConcurrencyTest {
     @Autowired private CreateTransactionService service;
     @Autowired private JdbcTemplate jdbcTemplate;
     @MockitoBean private AccountBalancePort accounts;
+    @MockitoBean private ExchangeRatePort exchangeRates;
     @MockitoSpyBean private TransactionPersistenceAdapter transactions;
 
     @Test

@@ -11,3 +11,9 @@ spring:
 
 mock-api:
   base-url: http://localhost:9999
+
+user-service:
+  base-url: http://localhost:9999
+
+brasil-api:
+  base-url: http://localhost:9999

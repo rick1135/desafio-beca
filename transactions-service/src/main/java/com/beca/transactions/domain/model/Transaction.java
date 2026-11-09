@@ -4,6 +4,8 @@ import com.beca.transactions.domain.exception.InvalidTransactionException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
 
 public class Transaction {
     private static final String DEPOSIT_CATEGORY = "Depósito";
@@ -20,11 +22,20 @@ public class Transaction {
     private final Long originalTransactionId;
     private final String description;
     private final Instant creationDate;
+    private final List<ExchangeRate> exchangeRates;
 
     public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
                        Long originUserId, Long destinationUserId, TransactionStatus status,
                        String rejectionReason, Long originalTransactionId,
                        String description, Instant creationDate) {
+        this(id, type, amount, category, originUserId, destinationUserId, status,
+                rejectionReason, originalTransactionId, description, creationDate, List.of());
+    }
+
+    public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
+                       Long originUserId, Long destinationUserId, TransactionStatus status,
+                       String rejectionReason, Long originalTransactionId,
+                       String description, Instant creationDate, List<ExchangeRate> exchangeRates) {
         this.id = id;
         if(type==TransactionType.PURCHASE && category==null) {
             throw new InvalidTransactionException("Categoria não pode ser nula");
@@ -80,6 +91,11 @@ public class Transaction {
                     "Motivo da rejeição deve ter no máximo 255 caracteres"
             );
         }
+        if (exchangeRates == null || exchangeRates.stream().anyMatch(Objects::isNull)) {
+            throw new InvalidTransactionException(
+                    "Cotações de câmbio não podem ser nulas"
+            );
+        }
         this.type = type;
         this.amount = amount.setScale(2);
         this.category = id == null ? defaultCategory(type, category) : category;
@@ -90,6 +106,7 @@ public class Transaction {
         this.originalTransactionId = originalTransactionId;
         this.description = description;
         this.creationDate = creationDate;
+        this.exchangeRates = List.copyOf(exchangeRates);
     }
 
     public TransactionType getType() {
@@ -136,6 +153,15 @@ public class Transaction {
         return creationDate;
     }
 
+    public List<ExchangeRate> getExchangeRates() {
+        return exchangeRates;
+    }
+
+    public Transaction withExchangeRates(List<ExchangeRate> rates) {
+        return new Transaction(id, type, amount, category, originUserId, destinationUserId,
+                status, rejectionReason, originalTransactionId, description, creationDate, rates);
+    }
+
     public Transaction reject(String reason) {
         return new Transaction(
                 id,
@@ -148,7 +174,8 @@ public class Transaction {
                 reason,
                 originalTransactionId,
                 description,
-                creationDate
+                creationDate,
+                exchangeRates
         );
     }
 

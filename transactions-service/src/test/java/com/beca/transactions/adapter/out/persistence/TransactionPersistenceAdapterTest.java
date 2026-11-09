@@ -3,6 +3,8 @@ package com.beca.transactions.adapter.out.persistence;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
+import com.beca.transactions.domain.model.ExchangeCurrency;
+import com.beca.transactions.domain.model.ExchangeRate;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
@@ -28,6 +33,34 @@ public class TransactionPersistenceAdapterTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Test
+    void devePersistirCotacoesHistoricasComATransacao() {
+        ExchangeRate usd = new ExchangeRate(ExchangeCurrency.USD, new BigDecimal("5.5013"),
+                LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:06:13.966362"),
+                "FECHAMENTO PTAX");
+        ExchangeRate eur = new ExchangeRate(ExchangeCurrency.EUR, new BigDecimal("6.1317"),
+                LocalDate.parse("2026-11-06"), LocalDateTime.parse("2026-11-06T13:06:13.966362"),
+                "FECHAMENTO PTAX");
+        Transaction original = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("100.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, null, "Depósito", Instant.parse("2026-11-06T16:00:00Z"), List.of(usd, eur));
+
+        Transaction saved = adapter.save(original);
+        entityManager.clear();
+        var found = adapter.findById(saved.getId()).orElseThrow();
+
+        assertEquals(Set.of(ExchangeCurrency.USD, ExchangeCurrency.EUR),
+                found.getExchangeRates().stream().map(ExchangeRate::currency).collect(toSet()));
+        assertTrue(found.getExchangeRates().stream().anyMatch(rate ->
+                rate.currency() == ExchangeCurrency.USD
+                        && rate.sellingRate().compareTo(usd.sellingRate()) == 0
+                        && rate.rateDate().equals(usd.rateDate())
+                        && rate.quotedAt().equals(usd.quotedAt())));
+        assertTrue(found.getExchangeRates().stream().anyMatch(rate ->
+                rate.currency() == ExchangeCurrency.EUR
+                        && rate.sellingRate().compareTo(eur.sellingRate()) == 0));
+    }
 
     @Test
     void deveSalvarEBuscarTransacaoPorId() {
