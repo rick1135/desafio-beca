@@ -61,12 +61,13 @@ class GetTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("permite que o destinatário consulte transferência aprovada")
+    @DisplayName("permite consulta de transferência aprovada pelo destinatário")
     void testGetById_WhenUserIsRecipientOfApprovedTransfer_ShouldReturnTransaction() {
         // given
-        Transaction transfer = new Transaction(42L, TransactionType.TRANSFER,
-                new BigDecimal("100.00"), null, 1L, 2L, TransactionStatus.APPROVED,
-                null, null, "Transferência", Instant.parse("2026-11-06T12:00:00Z"));
+        Transaction transfer = new Transaction(42L, TransactionType.TRANSFER, new BigDecimal("100.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null,
+                null, "Transferência", Instant.parse("2026-11-06T12:00:00Z")
+        );
         when(transactions.findById(42L)).thenReturn(Optional.of(transfer));
 
         // when

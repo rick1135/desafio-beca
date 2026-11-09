@@ -4,6 +4,7 @@ import com.beca.transactions.adapter.in.web.exception.GlobalExceptionHandler;
 import com.beca.transactions.application.usecase.CreateTransactionService;
 import com.beca.transactions.application.usecase.GetTransactionService;
 import com.beca.transactions.application.usecase.ProcessTransactionService;
+import com.beca.transactions.domain.model.AuthenticatedUser;
 import com.beca.transactions.domain.model.ExchangeCurrency;
 import com.beca.transactions.domain.model.ExchangeRate;
 import com.beca.transactions.domain.model.Transaction;
@@ -14,9 +15,15 @@ import com.beca.transactions.domain.port.AccountOperationLockPort;
 import com.beca.transactions.domain.port.ExchangeRatePort;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import com.beca.transactions.domain.port.UserLookupPort;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -38,11 +45,25 @@ class TransactionControllerTest {
 
     @BeforeEach
     void setUp() {
+        authenticateAs(1L);
         service = mock(CreateTransactionService.class);
         mvc = MockMvcBuilders.standaloneSetup(new TransactionController(
                         service, mock(GetTransactionService.class)))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(Long userId) {
+        var principal = new AuthenticatedUser(userId, "Usuário Teste", "teste@example.com");
+        var auth = new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     @Test
@@ -99,16 +120,25 @@ class TransactionControllerTest {
     }
 
     @Test
-    void rejectsInvalidUserIdBeforeCallingService() throws Exception {
+    @DisplayName("deve ignorar header X-User-Id e usar o usuário autenticado no contexto")
+    void ignoresForgedUserIdHeaderAndUsesAuthenticatedPrincipal() throws Exception {
+        // given
+        when(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
+                eq("Depósito de teste"), isNull(), isNull(), isNull()))
+                .thenReturn(transaction(TransactionType.DEPOSIT, TransactionStatus.APPROVED, null));
+
+        // when / then
         mvc.perform(post("/transactions")
-                        .header("X-User-Id", "0")
+                        .header("X-User-Id", "999")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"type":"DEPOSIT","amount":25.00,"description":"Depósito de teste"}
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.originUserId").value(1));
 
-        verifyNoInteractions(service);
+        verify(service).create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
+                eq("Depósito de teste"), isNull(), isNull(), isNull());
     }
 
     @Test
@@ -248,6 +278,7 @@ class TransactionControllerTest {
                         new TransactionController(new CreateTransactionService(
                                 accounts, users, new ProcessTransactionService(repository, lock),
                                 exchangeRates), mock(GetTransactionService.class)))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 

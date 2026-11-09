@@ -2,10 +2,10 @@ package com.beca.transactions.adapter.in.web;
 
 import com.beca.transactions.adapter.in.web.dto.BalanceResponse;
 import com.beca.transactions.application.usecase.GetBalanceService;
-import com.beca.transactions.domain.exception.InvalidTransactionException;
+import com.beca.transactions.domain.model.AuthenticatedUser;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -17,11 +17,8 @@ public class BalanceController {
     }
 
     @GetMapping("/balance")
-    public ResponseEntity<BalanceResponse> getBalance(@RequestHeader("X-User-Id") Long userId){
-        if (userId <= 0) {
-            throw new InvalidTransactionException("ID do usuário inválido");
-        }
-        var balance = getBalanceService.getBalance(userId);
+    public ResponseEntity<BalanceResponse> getBalance(@AuthenticationPrincipal AuthenticatedUser user){
+        var balance = getBalanceService.getBalance(user.id());
 
         return ResponseEntity.ok(new BalanceResponse(
                 balance.userId(),

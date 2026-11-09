@@ -5,7 +5,13 @@ import com.beca.transactions.application.exception.ForbiddenTransactionAccessExc
 import com.beca.transactions.application.usecase.CreateTransactionService;
 import com.beca.transactions.application.usecase.GetTransactionService;
 import com.beca.transactions.domain.model.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,12 +28,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TransactionExchangeQueryTest {
     private final GetTransactionService service = mock(GetTransactionService.class);
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
+    @DisplayName("retorna conversões históricas sem consultar API externa")
     void returnsHistoricalConversionsWithoutCallingExternalApi() throws Exception {
+        // given
+        authenticateAs(1L);
         when(service.getById(42L, 1L)).thenReturn(transaction(List.of(
                 rate(ExchangeCurrency.USD, "5.00"), rate(ExchangeCurrency.EUR, "10.00"))));
 
-        mvc().perform(get("/transactions/42").header("X-User-Id", "1"))
+        // when / then
+        mvc().perform(get("/transactions/42"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.amount").value(100.00))
                 .andExpect(jsonPath("$.conversionAvailable").value(true))
@@ -37,9 +52,14 @@ class TransactionExchangeQueryTest {
     }
 
     @Test
+    @DisplayName("retorna BRL com HTTP 200 quando cotações não estiverem disponíveis")
     void returnsBrlWithHttp200WhenRatesWereUnavailable() throws Exception {
+        // given
+        authenticateAs(1L);
         when(service.getById(42L, 1L)).thenReturn(transaction(List.of()));
-        mvc().perform(get("/transactions/42").header("X-User-Id", "1"))
+
+        // when / then
+        mvc().perform(get("/transactions/42"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currency").value("BRL"))
                 .andExpect(jsonPath("$.conversionAvailable").value(false))
@@ -47,10 +67,22 @@ class TransactionExchangeQueryTest {
     }
 
     @Test
+    @DisplayName("retorna 403 ao tentar acessar transação de outro usuário")
     void forbidsAccessToTransactionsOfOtherUsers() throws Exception {
+        // given
+        authenticateAs(2L);
         when(service.getById(42L, 2L)).thenThrow(new ForbiddenTransactionAccessException());
-        mvc().perform(get("/transactions/42").header("X-User-Id", "2"))
+
+        // when / then
+        mvc().perform(get("/transactions/42"))
                 .andExpect(status().isForbidden());
+    }
+
+    private void authenticateAs(Long userId) {
+        var principal = new AuthenticatedUser(userId, "Usuário", "user@example.com");
+        var auth = new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     private Transaction transaction(List<ExchangeRate> rates) {
@@ -67,6 +99,7 @@ class TransactionExchangeQueryTest {
     private MockMvc mvc() {
         return MockMvcBuilders.standaloneSetup(new TransactionController(
                 mock(CreateTransactionService.class), service))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 }
