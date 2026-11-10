@@ -5,6 +5,7 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.model.ExchangeCurrency;
 import com.beca.transactions.domain.model.ExchangeRate;
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,6 +143,7 @@ public class TransactionPersistenceAdapterTest {
 
     @Test
     void devePreservarVinculoDaCorrecaoETransacaoOriginal() {
+        // given
         Instant data = Instant.parse("2026-11-04T12:00:00Z");
         Transaction original = adapter.save(new Transaction(
                 null, TransactionType.DEPOSIT, new BigDecimal("25.00"),
@@ -151,22 +153,88 @@ public class TransactionPersistenceAdapterTest {
         Transaction correcao = adapter.save(new Transaction(
                 null, TransactionType.DEPOSIT, new BigDecimal("30.00"),
                 null, 1L, null, TransactionStatus.APPROVED,
-                null, original.getId(), "Correção do depósito", data.plusSeconds(60)
+                null, original.getId(), "Correção do depósito", data.plusSeconds(60),
+                List.of(), "Valor original incorreto"
         ));
 
         entityManager.clear();
+
+        // when
         Transaction originalEncontrada = adapter.findById(original.getId()).orElseThrow();
         Transaction correcaoEncontrada = adapter.findById(correcao.getId()).orElseThrow();
+        List<Transaction> correcoesDoTitular = adapter.findCorrectionsByOriginalTransactionId(original.getId(), 1L);
+        List<Transaction> correcoesDeOutroUsuario = adapter.findCorrectionsByOriginalTransactionId(original.getId(), 2L);
 
+        // then
         assertNotEquals(originalEncontrada.getId(), correcaoEncontrada.getId());
         assertEquals(original.getId(), correcaoEncontrada.getOriginalTransactionId());
         assertEquals(new BigDecimal("30.00"), correcaoEncontrada.getAmount());
         assertEquals("Correção do depósito", correcaoEncontrada.getDescription());
+        assertEquals("Valor original incorreto", correcaoEncontrada.getCorrectionReason());
+        assertEquals(List.of(correcao.getId()),
+                correcoesDoTitular.stream().map(Transaction::getId).toList());
+        assertTrue(correcoesDeOutroUsuario.isEmpty());
         assertEquals(data.plusSeconds(60), correcaoEncontrada.getCreationDate());
         assertNull(originalEncontrada.getOriginalTransactionId());
         assertEquals(new BigDecimal("25.00"), originalEncontrada.getAmount());
         assertEquals("Depósito original", originalEncontrada.getDescription());
+        assertNull(originalEncontrada.getCorrectionReason());
         assertEquals(data, originalEncontrada.getCreationDate());
+    }
+
+    @Test
+    void devePermitirNovaCorrecaoAposTentativaRejeitadaEImpedirSegundaCorrecaoAprovada() {
+        // given
+        Transaction original = adapter.save(new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("25.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, null, "Original", Instant.parse("2026-11-04T12:00:00Z")));
+        Transaction tentativaRejeitada = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("5.00"), null, 1L, null, TransactionStatus.REJECTED,
+                "Saldo insuficiente", original.getId(), "Tentativa rejeitada",
+                Instant.parse("2026-11-04T12:00:30Z"), List.of(), "Valor incorreto");
+        adapter.save(tentativaRejeitada);
+
+        assertFalse(adapter.existsByOriginalTransactionIdAndStatus(original.getId(), TransactionStatus.APPROVED));
+
+        Transaction primeiraAprovada = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("30.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, original.getId(), "Primeira correção aprovada", Instant.parse("2026-11-04T12:01:00Z"),
+                List.of(), "Valor incorreto");
+        adapter.save(primeiraAprovada);
+
+        Transaction segundaAprovada = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("35.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, original.getId(), "Segunda correção aprovada", Instant.parse("2026-11-04T12:02:00Z"),
+                List.of(), "Novo valor");
+
+        // when / then
+        assertTrue(adapter.existsByOriginalTransactionIdAndStatus(original.getId(), TransactionStatus.APPROVED));
+        assertThrows(InvalidTransactionException.class, () -> adapter.save(segundaAprovada));
+    }
+
+    @Test
+    void deveConsultarCorrecaoDeTransferenciaParaEstornarCreditoDoDestinoOriginal() {
+        // given
+        Instant data = Instant.parse("2026-11-04T12:00:00Z");
+        Transaction original = adapter.save(new Transaction(null, TransactionType.TRANSFER,
+                new BigDecimal("100.00"), null, 1L, 2L, TransactionStatus.APPROVED,
+                null, null, "Original", data));
+        Transaction correction = adapter.save(new Transaction(null, TransactionType.TRANSFER,
+                new BigDecimal("80.00"), null, 1L, 3L, TransactionStatus.APPROVED,
+                null, original.getId(), "Correção", data.plusSeconds(60),
+                List.of(), "Destinatário e valor incorretos"));
+
+        // when
+        var recebidasAntigoDestinatario = adapter.findApprovedIncomingTransfersByUserId(2L);
+        var recebidasNovoDestinatario = adapter.findApprovedIncomingTransfersByUserId(3L);
+
+        // then
+        assertEquals(Set.of(original.getId(), correction.getId()),
+                recebidasAntigoDestinatario.stream()
+                        .map(Transaction::getId).collect(toSet()));
+        assertEquals(List.of(correction.getId()),
+                recebidasNovoDestinatario.stream()
+                        .map(Transaction::getId).toList());
     }
 
     @Test

@@ -5,10 +5,15 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import org.springframework.stereotype.Repository;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.sql.SQLException;
+import java.util.Locale;
 
 @Repository
 public class TransactionPersistenceAdapter implements TransactionRepositoryPort {
@@ -23,13 +28,46 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
         if(transaction.getId()!=null) throw new IllegalArgumentException("" +
                 "Uma nova transação não pode ter ID preenchido");
         TransactionEntity entity = toEntity(transaction);
-        TransactionEntity savedEntity = repository.saveAndFlush(entity);
-        return toDomain(savedEntity);
+        try {
+            TransactionEntity savedEntity = repository.saveAndFlush(entity);
+            return toDomain(savedEntity);
+        } catch (DataIntegrityViolationException ex) {
+            if (transaction.isCorrection() && isCorrectionUniqueViolation(ex)) {
+                throw new InvalidTransactionException("Esta transação já foi corrigida");
+            }
+            throw ex;
+        }
     }
 
     @Override
     public Optional<Transaction> findById(Long id) {
         return repository.findById(id).map(entity -> toDomain(entity));
+    }
+
+    @Override
+    public boolean existsByOriginalTransactionIdAndStatus(Long originalTransactionId, TransactionStatus status) {
+        return repository.existsByOriginalTransactionIdAndStatus(originalTransactionId, status);
+    }
+
+    private boolean isCorrectionUniqueViolation(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && "23505".equals(sql.getSQLState())
+                    && String.valueOf(sql.getMessage()).toLowerCase(Locale.ROOT)
+                    .contains("uk_transactions_original_transaction_id")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public List<Transaction> findCorrectionsByOriginalTransactionId(Long originalTransactionId, Long originUserId) {
+        return repository.findByOriginalTransactionIdAndOriginUserIdOrderByCreationDateDescIdDesc(
+                        originalTransactionId, originUserId
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override
@@ -63,7 +101,7 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
 
     @Override
     public List<Transaction> findApprovedIncomingTransfersByUserId(Long userId) {
-        return repository.findByDestinationUserIdAndTypeAndStatus(
+        return repository.findIncomingTransfersAndCorrections(
                         userId,
                         TransactionType.TRANSFER,
                         TransactionStatus.APPROVED
@@ -95,7 +133,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 transaction.getOriginalTransactionId(),
                 transaction.getDescription(),
                 transaction.getCreationDate(),
-                transaction.getExchangeRates()
+                transaction.getExchangeRates(),
+                transaction.getCorrectionReason()
         );
     }
 
@@ -112,7 +151,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 entity.getOriginalTransactionId(),
                 entity.getDescription(),
                 entity.getCreationDate(),
-                entity.getExchangeRates()
+                entity.getExchangeRates(),
+                entity.getCorrectionReason()
         );
     }
 }

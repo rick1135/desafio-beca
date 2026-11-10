@@ -1,6 +1,8 @@
 package com.beca.transactions.application.usecase;
 
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
+import com.beca.transactions.application.exception.ForbiddenTransactionAccessException;
+import com.beca.transactions.application.exception.TransactionNotFoundException;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.domain.model.AccountBalance;
 import com.beca.transactions.domain.model.ExchangeCurrency;
@@ -10,6 +12,7 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.ExchangeRatePort;
+import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import com.beca.transactions.domain.port.UserLookupPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,12 +41,120 @@ class CreateTransactionServiceTest {
     @Mock private UserLookupPort users;
     @Mock private ProcessTransactionService processor;
     @Mock private ExchangeRatePort exchangeRates;
+    @Mock private TransactionRepositoryPort transactions;
 
     private CreateTransactionService service;
 
     @BeforeEach
     void setUp() {
-        service = new CreateTransactionService(accounts, users, processor, exchangeRates);
+        service = new CreateTransactionService(accounts, users, processor, exchangeRates, transactions);
+    }
+
+    @Test
+    @DisplayName("rejeita correção com 404 quando a transação original não existe")
+    void testCreate_WhenOriginalTransactionDoesNotExist_ShouldThrowNotFound() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.empty());
+
+        // when / then
+        assertThrows(TransactionNotFoundException.class, () ->
+                service.create(1L, TransactionType.DEPOSIT, money("25.00"),
+                        "Correção", null, null, 42L, "Valor incorreto"));
+
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção com 403 quando a transação original pertence a outro usuário")
+    void testCreate_WhenOriginalTransactionBelongsToAnotherUser_ShouldThrowForbidden() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.of(originalForUser(2L)));
+
+        // when / then
+        assertThrows(ForbiddenTransactionAccessException.class, () ->
+                service.create(1L, TransactionType.DEPOSIT, money("25.00"),
+                        "Correção", null, null, 42L, "Valor incorreto"));
+
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção sem motivo antes de consultar o banco ou serviços externos")
+    void testCreate_WhenCorrectionReasonIsMissing_ShouldRejectBeforeExternalAccess() {
+        // given
+        BigDecimal amount = money("25.00");
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () ->
+                service.create(1L, TransactionType.DEPOSIT, amount,
+                        "Correção sem motivo", null, null, 42L, null));
+
+        verifyNoInteractions(transactions, processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("processa correção autorizada normalmente preservando o vínculo e o motivo")
+    void testCreate_WhenCorrectionIsAuthorized_ShouldDelegateWithReason() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.of(originalForUser(1L)));
+        when(processor.process(any(Transaction.class), isNull(), isNull()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        Transaction correction = service.create(1L, TransactionType.DEPOSIT, money("25.00"),
+                "Correção", null, null, 42L, "Valor incorreto");
+
+        // then
+        assertEquals(42L, correction.getOriginalTransactionId());
+        assertEquals("Valor incorreto", correction.getCorrectionReason());
+        assertEquals(1L, correction.getOriginUserId());
+        verify(processor).process(any(Transaction.class), isNull(), isNull());
+    }
+
+    @Test
+    @DisplayName("rejeita correção de transação rejeitada antes de consultar serviços externos")
+    void testCreate_WhenOriginalIsRejected_ShouldRejectBeforeExternalAccess() {
+        // given
+        Transaction original = originalForUser(1L).reject("Rejeitada");
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.DEPOSIT,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção de outra correção antes de consultar serviços externos")
+    void testCreate_WhenOriginalIsCorrection_ShouldRejectBeforeExternalAccess() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.DEPOSIT, money("10.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, 10L,
+                "Correção anterior", Instant.parse("2026-11-06T12:00:00Z"));
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.DEPOSIT,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção de tipo diferente antes de consultar serviços externos")
+    void testCreate_WhenTypeDiffersFromOriginal_ShouldRejectBeforeExternalAccess() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.of(originalForUser(1L)));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.WITHDRAW,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    private Transaction originalForUser(Long userId) {
+        return new Transaction(42L, TransactionType.DEPOSIT, money("10.00"),
+                "Depósito", userId, null, TransactionStatus.APPROVED, null, null,
+                "Original", Instant.parse("2026-11-06T12:00:00Z"));
     }
 
     @Test

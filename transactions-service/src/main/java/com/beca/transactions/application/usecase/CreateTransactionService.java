@@ -1,6 +1,9 @@
 package com.beca.transactions.application.usecase;
 
 import com.beca.transactions.application.exception.ExternalServiceUnavailableException;
+import com.beca.transactions.application.exception.ForbiddenTransactionAccessException;
+import com.beca.transactions.application.exception.TransactionNotFoundException;
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.domain.model.AccountBalance;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
@@ -9,6 +12,7 @@ import com.beca.transactions.domain.model.ExchangeCurrency;
 import com.beca.transactions.domain.model.ExchangeRate;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.ExchangeRatePort;
+import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import com.beca.transactions.domain.port.UserLookupPort;
 import org.springframework.stereotype.Service;
 
@@ -30,24 +34,49 @@ public class CreateTransactionService {
     private final UserLookupPort users;
     private final ProcessTransactionService processTransactionService;
     private final ExchangeRatePort exchangeRates;
+    private final TransactionRepositoryPort transactions;
 
     public CreateTransactionService(AccountBalancePort accounts, UserLookupPort users,
                                     ProcessTransactionService processTransactionService,
-                                    ExchangeRatePort exchangeRates) {
+                                    ExchangeRatePort exchangeRates, TransactionRepositoryPort transactions) {
         this.accounts = accounts;
         this.users = users;
         this.processTransactionService = processTransactionService;
         this.exchangeRates = exchangeRates;
+        this.transactions = transactions;
     }
 
     public Transaction create(Long originUserId, TransactionType type, BigDecimal amount,
             String description, String category, Long destinationUserId, Long originalTransactionId
     ){
+        return create(originUserId, type, amount, description, category,
+                destinationUserId, originalTransactionId, null);
+    }
+
+    public Transaction create(Long originUserId, TransactionType type, BigDecimal amount,
+            String description, String category, Long destinationUserId,
+            Long originalTransactionId, String correctionReason
+    ) {
+        if (originalTransactionId != null && correctionReason == null) {
+            throw new InvalidTransactionException("Motivo da correção deve ter entre 1 e 255 caracteres");
+        }
+
         Instant now = Instant.now();
         Transaction candidate = new Transaction(
                 null, type, amount, category, originUserId, destinationUserId,
-                TransactionStatus.APPROVED, null, originalTransactionId, description, now
+                TransactionStatus.APPROVED, null, originalTransactionId, description, now,
+                List.of(), correctionReason
         );
+
+        if (originalTransactionId != null) {
+            Transaction original = transactions.findById(originalTransactionId)
+                    .orElseThrow(() -> new TransactionNotFoundException(originalTransactionId));
+            if (!original.getOriginUserId().equals(originUserId)) {
+                throw new ForbiddenTransactionAccessException();
+            }
+            candidate.validateCorrectionOf(original);
+        }
+
         candidate = candidate.withExchangeRates(loadExchangeRates(now));
         String rejectionReason = null;
         AccountBalance account = null;
@@ -62,7 +91,7 @@ public class CreateTransactionService {
             }
         }
 
-        if (type != TransactionType.DEPOSIT && rejectionReason == null) {
+        if ((type != TransactionType.DEPOSIT || originalTransactionId != null) && rejectionReason == null) {
             try {
                 account = accounts.findByUserId(originUserId).orElse(null);
             } catch (ExternalServiceUnavailableException ex) {

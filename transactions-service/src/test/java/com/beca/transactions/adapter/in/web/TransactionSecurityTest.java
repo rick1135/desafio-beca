@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
+import java.util.List;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -51,6 +52,39 @@ class TransactionSecurityTest {
                 .andExpect(jsonPath("$.status").value(401));
 
         verifyNoInteractions(authPort, transactions, createService);
+    }
+
+    @Test
+    @DisplayName("deve retornar 401 ao consultar correções de uma transação sem credenciais")
+    void rejectsCorrectionsQueryWithoutCredentials() throws Exception {
+        // when / then
+        mvc.perform(get("/transactions/42/corrections"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+
+        verifyNoInteractions(authPort, transactions, createService);
+    }
+
+    @Test
+    @DisplayName("deve listar correções usando o usuário autenticado e ignorar header X-User-Id")
+    void listsCorrectionsOnlyForAuthenticatedOwner() throws Exception {
+        // given
+        given(authPort.authenticate("b@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(2L, "Usuário B", "b@example.com")));
+        given(transactions.findById(42L)).willReturn(Optional.of(new Transaction(
+                42L, TransactionType.DEPOSIT, new BigDecimal("25.00"), null,
+                2L, null, TransactionStatus.APPROVED, null, null,
+                "Original", Instant.parse("2026-11-06T12:00:00Z"))));
+        given(transactions.findCorrectionsByOriginalTransactionId(42L, 2L)).willReturn(List.of());
+
+        // when / then
+        mvc.perform(get("/transactions/42/corrections")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("b@example.com", "Senha123"))
+                        .header("X-User-Id", "1"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        then(transactions).should().findCorrectionsByOriginalTransactionId(42L, 2L);
     }
 
     @Test

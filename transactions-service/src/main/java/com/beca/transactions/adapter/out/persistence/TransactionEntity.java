@@ -48,6 +48,9 @@ public class TransactionEntity {
     @CollectionTable(name = "transaction_exchange_rates", joinColumns = @JoinColumn(name = "transaction_id"))
     private List<ExchangeRateEmbeddable> exchangeRates = new ArrayList<>();
 
+    @Column(name = "correction_reason", length = 255)
+    private String correctionReason;
+
     public TransactionEntity() {
     }
 
@@ -61,6 +64,14 @@ public class TransactionEntity {
     public TransactionEntity(Long id, TransactionType type, BigDecimal amount, String category, Long originUserId, Long destinationUserId,
                              TransactionStatus status, String rejectionReason, Long originalTransactionId, String description, Instant creationDate,
                              List<ExchangeRate> exchangeRates) {
+        this(id, type, amount, category, originUserId, destinationUserId,
+                status, rejectionReason, originalTransactionId, description, creationDate,
+                exchangeRates, null);
+    }
+
+    public TransactionEntity(Long id, TransactionType type, BigDecimal amount, String category, Long originUserId, Long destinationUserId,
+                             TransactionStatus status, String rejectionReason, Long originalTransactionId, String description, Instant creationDate,
+                             List<ExchangeRate> exchangeRates, String correctionReason) {
         this.id = id;
         this.type = type;
         this.amount = amount;
@@ -73,6 +84,7 @@ public class TransactionEntity {
         this.description = description;
         this.creationDate = creationDate;
         this.exchangeRates = exchangeRates.stream().map(ExchangeRateEmbeddable::new).toList();
+        this.correctionReason = correctionReason;
     }
 
     public Long getId() {
@@ -117,6 +129,10 @@ public class TransactionEntity {
 
     public Instant getCreationDate() {
         return creationDate;
+    }
+
+    public String getCorrectionReason() {
+        return correctionReason;
     }
 
     public List<ExchangeRate> getExchangeRates() {

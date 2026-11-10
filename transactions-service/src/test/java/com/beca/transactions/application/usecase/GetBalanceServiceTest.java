@@ -8,6 +8,7 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -96,6 +97,46 @@ class GetBalanceServiceTest {
         assertEquals(0, money("0.00").compareTo(recipient.dailySpent()));
         verify(transactions).findApprovedIncomingTransfersByUserId(1L);
         verify(transactions).findApprovedIncomingTransfersByUserId(2L);
+    }
+
+    @Test
+    @DisplayName("correção de transferência estorna crédito do destinatário original e credita o novo destinatário")
+    void correctedTransferRemovesOriginalRecipientCreditAndCreditsNewRecipient() {
+        // given
+        Instant now = Instant.now();
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                "Transferência original", now);
+        Transaction correction = new Transaction(43L, TransactionType.TRANSFER, money("80.00"),
+                null, 1L, 3L, TransactionStatus.APPROVED, null, 42L,
+                "Transferência corrigida", now.plusSeconds(1));
+        for (Long userId : List.of(1L, 2L, 3L)) {
+            doReturn(Optional.of(new AccountBalance(
+                    userId, userId == 1L ? money("1000.00") : money("0.00"),
+                    money("800.00"), money("500.00"))))
+                    .when(accounts).findByUserId(userId);
+        }
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(original, correction));
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(2L))
+                .thenReturn(List.of(original, correction));
+        when(transactions.findApprovedIncomingTransfersByUserId(3L))
+                .thenReturn(List.of(correction));
+
+        GetBalanceService service = new GetBalanceService(accounts, transactions);
+
+        // when
+        var sender = service.getBalance(1L);
+        var oldRecipient = service.getBalance(2L);
+        var newRecipient = service.getBalance(3L);
+
+        // then
+        assertEquals(money("920.00"), sender.effectiveBalance());
+        assertEquals(money("80.00"), sender.dailySpent());
+        assertEquals(0, money("0.00").compareTo(oldRecipient.effectiveBalance()));
+        assertEquals(0, money("0.00").compareTo(oldRecipient.dailySpent()));
+        assertEquals(money("80.00"), newRecipient.effectiveBalance());
+        assertEquals(0, money("0.00").compareTo(newRecipient.dailySpent()));
     }
 
     @Test

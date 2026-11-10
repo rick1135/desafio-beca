@@ -2,6 +2,8 @@ package com.beca.transactions.domain.model;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BalanceRules {
     public BalanceSummary calculate(
@@ -11,9 +13,14 @@ public class BalanceRules {
             List<Transaction> receivedTransfers
     ){
         BigDecimal effectiveBalance = account.openingBalance();
+        Set<Long> correctedIds = approvedTransactions.stream()
+                .filter(t -> t.getStatus() == TransactionStatus.APPROVED && t.isCorrection())
+                .map(Transaction::getOriginalTransactionId)
+                .collect(Collectors.toSet());
 
         for(Transaction transaction:approvedTransactions){
             if(transaction.getStatus()!=TransactionStatus.APPROVED) continue;
+            if (correctedIds.contains(transaction.getId())) continue;
             if(transaction.getType()==TransactionType.DEPOSIT) effectiveBalance=effectiveBalance.add(transaction.getAmount());
             else if (isOutflow(transaction.getType())) effectiveBalance=effectiveBalance.subtract(transaction.getAmount());
         }
@@ -21,13 +28,19 @@ public class BalanceRules {
         BigDecimal dailySpent = BigDecimal.ZERO;
 
         for (Transaction transaction:todayOutflows){
-            if (transaction.getStatus() == TransactionStatus.APPROVED && isOutflow(transaction.getType()))
+            if (transaction.getStatus() == TransactionStatus.APPROVED
+                    && isOutflow(transaction.getType()) && !correctedIds.contains(transaction.getId()))
                 dailySpent = dailySpent.add(transaction.getAmount());
         }
 
+        Set<Long> correctedIncomingIds = receivedTransfers.stream()
+                .filter(t -> t.getStatus() == TransactionStatus.APPROVED && t.isCorrection())
+                .map(Transaction::getOriginalTransactionId)
+                .collect(Collectors.toSet());
         for (Transaction transaction : receivedTransfers) {
             if (transaction.getStatus() == TransactionStatus.APPROVED
                     && transaction.getType() == TransactionType.TRANSFER
+                    && !correctedIncomingIds.contains(transaction.getId())
                     && account.userId().equals(transaction.getDestinationUserId())) {
                 effectiveBalance = effectiveBalance.add(transaction.getAmount());
             }
@@ -63,6 +76,31 @@ public class BalanceRules {
         }
         if (summary.dailySpent().add(amount).compareTo(account.dailyLimit()) > 0) {
             return new OutflowDecision(false, "Limite diário excedido");
+        }
+        return new OutflowDecision(true, null);
+    }
+
+    public OutflowDecision evaluateCorrection(AccountBalance account, BalanceSummary summary,
+                                               Transaction original, Transaction correction,
+                                               boolean originalOccurredToday) {
+        BigDecimal balanceAfterReversal = isOutflow(original.getType())
+                ? summary.effectiveBalance().add(original.getAmount())
+                : summary.effectiveBalance().subtract(original.getAmount());
+        BigDecimal resultingBalance = correction.getType() == TransactionType.DEPOSIT
+                ? balanceAfterReversal.add(correction.getAmount())
+                : balanceAfterReversal.subtract(correction.getAmount());
+        if (resultingBalance.signum() < 0) {
+            return new OutflowDecision(false, "Saldo insuficiente");
+        }
+        if (isOutflow(correction.getType())) {
+            if (correction.getAmount().compareTo(account.transactionLimit()) > 0) {
+                return new OutflowDecision(false, "Limite por transação excedido");
+            }
+            BigDecimal spentAfterReversal = originalOccurredToday
+                    ? summary.dailySpent().subtract(original.getAmount()) : summary.dailySpent();
+            if (spentAfterReversal.add(correction.getAmount()).compareTo(account.dailyLimit()) > 0) {
+                return new OutflowDecision(false, "Limite diário excedido");
+            }
         }
         return new OutflowDecision(true, null);
     }

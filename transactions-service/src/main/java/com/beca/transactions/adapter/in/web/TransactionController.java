@@ -44,7 +44,8 @@ public class TransactionController {
                 request.description(),
                 request.category(),
                 request.destinationUserId(),
-                request.originalTransactionId()
+                request.originalTransactionId(),
+                request.correctionReason()
         );
 
         TransactionResponse response = TransactionResponse.from(saved);
@@ -59,6 +60,19 @@ public class TransactionController {
             throw new InvalidTransactionException("ID inválido");
         }
         return ResponseEntity.ok(TransactionResponse.from(getTransactionService.getById(id, user.id())));
+    }
+
+    @GetMapping("/{id}/corrections")
+    public ResponseEntity<List<TransactionResponse>> getCorrections(
+            @PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        if (id <= 0) {
+            throw new InvalidTransactionException("ID inválido");
+        }
+        return ResponseEntity.ok(getTransactionService.getCorrections(id, user.id())
+                .stream()
+                .map(TransactionResponse::from)
+                .toList());
     }
 
     @GetMapping
