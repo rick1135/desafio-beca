@@ -168,6 +168,25 @@ public class Transaction {
         return originalTransactionId;
     }
 
+    public boolean isCorrection() {
+        return originalTransactionId != null;
+    }
+
+    public void validateCorrectionOf(Transaction original) {
+        if (!isCorrection() || original == null || !Objects.equals(originalTransactionId, original.getId())) {
+            throw new InvalidTransactionException("A correção deve referenciar a transação original");
+        }
+        if (original.getStatus() != TransactionStatus.APPROVED) {
+            throw new InvalidTransactionException("Apenas transações aprovadas podem ser corrigidas");
+        }
+        if (original.isCorrection()) {
+            throw new InvalidTransactionException("Não é permitido corrigir uma transação que já é uma correção");
+        }
+        if (type != original.getType()) {
+            throw new InvalidTransactionException("A correção deve ter o mesmo tipo da transação original");
+        }
+    }
+
     public Long getId() {
         return id;
     }

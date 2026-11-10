@@ -111,6 +111,46 @@ class CreateTransactionServiceTest {
         verify(processor).process(any(Transaction.class), isNull(), isNull());
     }
 
+    @Test
+    @DisplayName("rejeita correção de transação rejeitada antes de consultar serviços externos")
+    void testCreate_WhenOriginalIsRejected_ShouldRejectBeforeExternalAccess() {
+        // given
+        Transaction original = originalForUser(1L).reject("Rejeitada");
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.DEPOSIT,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção de outra correção antes de consultar serviços externos")
+    void testCreate_WhenOriginalIsCorrection_ShouldRejectBeforeExternalAccess() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.DEPOSIT, money("10.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, 10L,
+                "Correção anterior", Instant.parse("2026-11-06T12:00:00Z"));
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.DEPOSIT,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
+    @Test
+    @DisplayName("rejeita correção de tipo diferente antes de consultar serviços externos")
+    void testCreate_WhenTypeDiffersFromOriginal_ShouldRejectBeforeExternalAccess() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.of(originalForUser(1L)));
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> service.create(1L, TransactionType.WITHDRAW,
+                money("30.00"), "Correção", null, null, 42L, "Valor incorreto"));
+        verifyNoInteractions(processor, exchangeRates, accounts, users);
+    }
+
     private Transaction originalForUser(Long userId) {
         return new Transaction(42L, TransactionType.DEPOSIT, money("10.00"),
                 "Depósito", userId, null, TransactionStatus.APPROVED, null, null,

@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 public interface TransactionJpaRepository extends JpaRepository<TransactionEntity, Long> {
+    boolean existsByOriginalTransactionId(Long originalTransactionId);
     List<TransactionEntity> findByOriginalTransactionIdAndOriginUserIdOrderByCreationDateDescIdDesc(
             Long originalTransactionId, Long originUserId
     );
@@ -24,10 +25,18 @@ public interface TransactionJpaRepository extends JpaRepository<TransactionEntit
             Instant endExclusive
     );
 
-    List<TransactionEntity> findByDestinationUserIdAndTypeAndStatus(
-            Long destinationUserId,
-            TransactionType type,
-            TransactionStatus status
+    @Query("""
+        select t from TransactionEntity t
+        where t.type = :type and t.status = :status
+          and (t.destinationUserId = :userId
+               or t.originalTransactionId in
+                  (select original.id from TransactionEntity original
+                   where original.type = :type and original.destinationUserId = :userId))
+        """)
+    List<TransactionEntity> findIncomingTransfersAndCorrections(
+            @Param("userId") Long userId,
+            @Param("type") TransactionType type,
+            @Param("status") TransactionStatus status
     );
 
     @Query("""

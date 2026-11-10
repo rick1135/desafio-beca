@@ -5,6 +5,7 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.model.ExchangeCurrency;
 import com.beca.transactions.domain.model.ExchangeRate;
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -179,6 +180,53 @@ public class TransactionPersistenceAdapterTest {
         assertEquals("Depósito original", originalEncontrada.getDescription());
         assertNull(originalEncontrada.getCorrectionReason());
         assertEquals(data, originalEncontrada.getCreationDate());
+    }
+
+    @Test
+    void deveImpedirSegundaCorrecaoPeloIndiceUnico() {
+        // given
+        Transaction original = adapter.save(new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("25.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, null, "Original", Instant.parse("2026-11-04T12:00:00Z")));
+        Transaction primeira = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("30.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, original.getId(), "Primeira correção", Instant.parse("2026-11-04T12:01:00Z"),
+                List.of(), "Valor incorreto");
+        adapter.save(primeira);
+
+        Transaction segunda = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("35.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, original.getId(), "Segunda correção", Instant.parse("2026-11-04T12:02:00Z"),
+                List.of(), "Novo valor");
+
+        // when / then
+        assertTrue(adapter.existsByOriginalTransactionId(original.getId()));
+        assertThrows(InvalidTransactionException.class, () -> adapter.save(segunda));
+    }
+
+    @Test
+    void deveConsultarCorrecaoDeTransferenciaParaEstornarCreditoDoDestinoOriginal() {
+        // given
+        Instant data = Instant.parse("2026-11-04T12:00:00Z");
+        Transaction original = adapter.save(new Transaction(null, TransactionType.TRANSFER,
+                new BigDecimal("100.00"), null, 1L, 2L, TransactionStatus.APPROVED,
+                null, null, "Original", data));
+        Transaction correction = adapter.save(new Transaction(null, TransactionType.TRANSFER,
+                new BigDecimal("80.00"), null, 1L, 3L, TransactionStatus.APPROVED,
+                null, original.getId(), "Correção", data.plusSeconds(60),
+                List.of(), "Destinatário e valor incorretos"));
+
+        // when
+        var recebidasAntigoDestinatario = adapter.findApprovedIncomingTransfersByUserId(2L);
+        var recebidasNovoDestinatario = adapter.findApprovedIncomingTransfersByUserId(3L);
+
+        // then
+        assertEquals(Set.of(original.getId(), correction.getId()),
+                recebidasAntigoDestinatario.stream()
+                        .map(Transaction::getId).collect(toSet()));
+        assertEquals(List.of(correction.getId()),
+                recebidasNovoDestinatario.stream()
+                        .map(Transaction::getId).toList());
     }
 
     @Test

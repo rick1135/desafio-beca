@@ -74,6 +74,7 @@ public class CreateTransactionService {
             if (!original.getOriginUserId().equals(originUserId)) {
                 throw new ForbiddenTransactionAccessException();
             }
+            candidate.validateCorrectionOf(original);
         }
 
         candidate = candidate.withExchangeRates(loadExchangeRates(now));
@@ -90,7 +91,7 @@ public class CreateTransactionService {
             }
         }
 
-        if (type != TransactionType.DEPOSIT && rejectionReason == null) {
+        if ((type != TransactionType.DEPOSIT || originalTransactionId != null) && rejectionReason == null) {
             try {
                 account = accounts.findByUserId(originUserId).orElse(null);
             } catch (ExternalServiceUnavailableException ex) {

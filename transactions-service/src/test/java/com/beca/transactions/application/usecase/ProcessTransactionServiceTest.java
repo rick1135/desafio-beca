@@ -4,6 +4,7 @@ import com.beca.transactions.domain.model.AccountBalance;
 import com.beca.transactions.domain.model.Transaction;
 import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
+import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.domain.port.AccountOperationLockPort;
 import com.beca.transactions.domain.port.TransactionRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,52 @@ class ProcessTransactionServiceTest {
     @BeforeEach
     void setUp() {
         processor = new ProcessTransactionService(transactions, accountLock);
+    }
+
+    @Test
+    @DisplayName("verifica correção única somente após adquirir o lock")
+    void testCorrection_WhenOriginalWasAlreadyCorrected_ShouldRejectAfterLock() {
+        // given
+        Transaction candidate = correction();
+        when(transactions.findById(42L)).thenReturn(java.util.Optional.of(original()));
+        when(transactions.existsByOriginalTransactionId(42L)).thenReturn(true);
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> processor.process(candidate, null, null));
+
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(transactions).findById(42L);
+        order.verify(transactions).existsByOriginalTransactionId(42L);
+        verify(transactions, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("salva correção após revalidar original e ausência de outra correção")
+    void testCorrection_WhenUnique_ShouldSaveAfterLock() {
+        // given
+        Transaction candidate = correction();
+        when(transactions.findById(42L)).thenReturn(java.util.Optional.of(original()));
+
+        // when
+        processor.process(candidate, account("1000.00", "800.00", "500.00"), null);
+
+        // then
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(transactions).findById(42L);
+        order.verify(transactions).existsByOriginalTransactionId(42L);
+        order.verify(transactions).save(same(candidate));
+    }
+
+    private Transaction original() {
+        return new Transaction(42L, TransactionType.DEPOSIT, money("25.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, null, "Original", CREATION_DATE);
+    }
+
+    private Transaction correction() {
+        return new Transaction(null, TransactionType.DEPOSIT, money("30.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, 42L, "Correção", CREATION_DATE);
     }
 
     @Test

@@ -9,6 +9,7 @@ import java.util.Optional;
 public interface TransactionRepositoryPort {
     Transaction save(Transaction transaction);
     Optional<Transaction> findById(Long id);
+    boolean existsByOriginalTransactionId(Long originalTransactionId);
     List<Transaction> findCorrectionsByOriginalTransactionId(Long originalTransactionId, Long originUserId);
     List<Transaction> findApprovedByOriginUserId(Long userId);
     List<Transaction> findApprovedOutflowsByOriginUserIdBetween(

@@ -1,5 +1,6 @@
 package com.beca.transactions.domain.model;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -92,6 +93,77 @@ class BalanceRulesTest {
                 new BalanceRules.BalanceSummary(money("500.00"), money("300.00")), money("500.00"));
         assertTrue(decision.approved());
         assertNull(decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("correção de depósito substitui o valor original e exige saldo para o débito líquido")
+    void correctedDepositReplacesOriginalAndRequiresFundsForNetDebit() {
+        // given
+        Transaction original = entry(42L, TransactionType.DEPOSIT, "100.00", 1L, null, null);
+        Transaction correction = entry(null, TransactionType.DEPOSIT, "20.00", 1L, null, 42L);
+
+        // when
+        var after = rules.calculate(account, List.of(original, correction), List.of(), List.of());
+        var decision = rules.evaluateCorrection(account,
+                new BalanceRules.BalanceSummary(money("20.00"), money("0.00")),
+                original, correction, true);
+
+        // then
+        assertEquals(money("1020.00"), after.effectiveBalance());
+        assertFalse(decision.approved());
+        assertEquals("Saldo insuficiente", decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("correção de saída substitui o valor original e recompõe o limite diário")
+    void correctedOutflowsReplaceOriginalAndFreeDailyLimit() {
+        for (TransactionType type : new TransactionType[]{
+                TransactionType.WITHDRAW, TransactionType.PURCHASE, TransactionType.TRANSFER}) {
+            // given
+            Transaction original = entry(42L, type, "100.00", 1L, 2L, null);
+            Transaction correction = entry(null, type, "80.00", 1L, 2L, 42L);
+
+            // when
+            var after = rules.calculate(account, List.of(original, correction),
+                    List.of(original, correction), List.of());
+            var decision = rules.evaluateCorrection(account,
+                    new BalanceRules.BalanceSummary(money("900.00"), money("100.00")),
+                    original, correction, true);
+
+            // then
+            assertEquals(money("920.00"), after.effectiveBalance());
+            assertEquals(money("80.00"), after.dailySpent());
+            assertTrue(decision.approved());
+        }
+    }
+
+    @Test
+    @DisplayName("correção de transferência estorna o crédito do destinatário antigo e credita o novo destinatário")
+    void transferCorrectionMovesCreditFromOldRecipientToNewRecipient() {
+        // given
+        Transaction original = entry(42L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(null, TransactionType.TRANSFER, "80.00", 1L, 3L, 42L);
+        AccountBalance oldRecipient = new AccountBalance(2L, money("0.00"), money("800.00"), money("500.00"));
+        AccountBalance newRecipient = new AccountBalance(3L, money("0.00"), money("800.00"), money("500.00"));
+
+        // when
+        var oldRecipientSummary = rules.calculate(oldRecipient, List.of(), List.of(),
+                List.of(original, correction));
+        var newRecipientSummary = rules.calculate(newRecipient, List.of(), List.of(),
+                List.of(correction));
+
+        // then
+        assertEquals(money("0.00"), oldRecipientSummary.effectiveBalance());
+        assertEquals(money("80.00"), newRecipientSummary.effectiveBalance());
+    }
+
+    private Transaction entry(Long id, TransactionType type, String amount, Long origin,
+                              Long destination, Long originalId) {
+        return new Transaction(id, type, money(amount),
+                type == TransactionType.PURCHASE ? "Alimentação" : null,
+                origin, type == TransactionType.TRANSFER ? destination : null,
+                TransactionStatus.APPROVED, null, originalId, "Teste",
+                Instant.parse("2026-11-06T12:00:00Z"));
     }
 
     private Transaction transaction(TransactionType type, TransactionStatus status, String amount) {

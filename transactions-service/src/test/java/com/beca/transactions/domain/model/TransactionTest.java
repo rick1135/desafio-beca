@@ -685,6 +685,46 @@ public class TransactionTest {
         assertEquals("Motivo da rejeição deve ter no máximo 255 caracteres", exception.getMessage());
     }
 
+    @Test
+    @DisplayName("somente transações com vínculo são correções")
+    void testIsCorrection() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.DEPOSIT, new BigDecimal("25.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, null,
+                "Original", CREATION_DATE);
+        Transaction correction = new Transaction(null, TransactionType.DEPOSIT, new BigDecimal("30.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, 42L,
+                "Correção", CREATION_DATE);
+
+        // when / then
+        assertFalse(original.isCorrection());
+        assertTrue(correction.isCorrection());
+        assertDoesNotThrow(() -> correction.validateCorrectionOf(original));
+    }
+
+    @Test
+    @DisplayName("não permite corrigir transação rejeitada, correção ou tipo diferente")
+    void testValidateCorrectionOf_WhenOriginalIsIneligible_ShouldReject() {
+        // given
+        Transaction correction = new Transaction(null, TransactionType.DEPOSIT, new BigDecimal("30.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, 42L,
+                "Correção", CREATION_DATE);
+        Transaction rejected = new Transaction(42L, TransactionType.DEPOSIT, new BigDecimal("25.00"),
+                null, 1L, null, TransactionStatus.REJECTED, "Rejeitada", null,
+                "Original", CREATION_DATE);
+        Transaction previousCorrection = new Transaction(42L, TransactionType.DEPOSIT, new BigDecimal("25.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, 10L,
+                "Correção anterior", CREATION_DATE);
+        Transaction differentType = new Transaction(42L, TransactionType.WITHDRAW, new BigDecimal("25.00"),
+                null, 1L, null, TransactionStatus.APPROVED, null, null,
+                "Original", CREATION_DATE);
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> correction.validateCorrectionOf(rejected));
+        assertThrows(InvalidTransactionException.class, () -> correction.validateCorrectionOf(previousCorrection));
+        assertThrows(InvalidTransactionException.class, () -> correction.validateCorrectionOf(differentType));
+    }
+
     private Transaction createDeposit(BigDecimal amount, String description, Instant creationDate) {
         return new Transaction(
                 null, TransactionType.DEPOSIT, amount, null,
