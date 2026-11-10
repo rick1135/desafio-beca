@@ -1,6 +1,9 @@
 package com.beca.transactions.adapter.in.web;
 
 import com.beca.transactions.adapter.in.web.exception.GlobalExceptionHandler;
+import com.beca.transactions.application.usecase.GetExpenseSeriesService;
+import com.beca.transactions.application.usecase.GetExpenseSeriesService.ExpensePoint;
+import com.beca.transactions.application.usecase.GetExpenseSeriesService.ExpenseSeries;
 import com.beca.transactions.application.usecase.GetExpensesByCategoryService;
 import com.beca.transactions.application.usecase.GetExpensesByCategoryService.CategoryExpense;
 import com.beca.transactions.application.usecase.GetExpensesByCategoryService.ExpenseSummary;
@@ -42,6 +45,9 @@ class ExpenseControllerTest {
 
     @MockitoBean
     private GetExpensesByCategoryService expenses;
+
+    @MockitoBean
+    private GetExpenseSeriesService expenseSeries;
 
     @MockitoBean
     private UserAuthenticationPort authPort;
@@ -108,6 +114,78 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.status").value(401));
 
         verifyNoInteractions(authPort, expenses);
+    }
+
+    @Test
+    @DisplayName("deve retornar série diária para o usuário autenticado com aliases de data")
+    void returnsDailySeriesForAuthenticatedUserUsingDateAliases() throws Exception {
+        // given
+        given(authPort.authenticate("ana@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
+        LocalDate date = LocalDate.parse("2026-11-10");
+        BigDecimal total = new BigDecimal("50.00");
+        given(expenseSeries.daily(1L, date, date))
+                .willReturn(new ExpenseSeries("BRL", total, List.of(new ExpensePoint("2026-11-10", total))));
+
+        // when / then
+        mvc.perform(get("/expenses/daily")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123"))
+                        .param("dataInicio", date.toString())
+                        .param("dataFim", date.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("BRL"))
+                .andExpect(jsonPath("$.total").value(50))
+                .andExpect(jsonPath("$.series[0].period").value("2026-11-10"))
+                .andExpect(jsonPath("$.series[0].total").value(50));
+
+        then(expenseSeries).should().daily(1L, date, date);
+    }
+
+    @Test
+    @DisplayName("deve retornar série mensal para o usuário autenticado no período padrão")
+    void returnsMonthlySeriesForAuthenticatedUser() throws Exception {
+        // given
+        given(authPort.authenticate("ana@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
+        BigDecimal total = new BigDecimal("75.00");
+        given(expenseSeries.monthly(1L, null, null))
+                .willReturn(new ExpenseSeries("BRL", total, List.of(new ExpensePoint("2026-11", total))));
+
+        // when / then
+        mvc.perform(get("/expenses/monthly")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("BRL"))
+                .andExpect(jsonPath("$.total").value(75))
+                .andExpect(jsonPath("$.series[0].period").value("2026-11"));
+
+        then(expenseSeries).should().monthly(1L, null, null);
+    }
+
+    @Test
+    @DisplayName("deve retornar 400 quando o formato de data for inválido nos endpoints de série")
+    void rejectsInvalidDateOnSeries() throws Exception {
+        // given
+        given(authPort.authenticate("ana@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
+
+        // when / then
+        mvc.perform(get("/expenses/daily")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123"))
+                        .param("startDate", "2026-11-99"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(expenseSeries);
+    }
+
+    @Test
+    @DisplayName("deve retornar 401 para requisições não autenticadas em /daily e /monthly")
+    void rejectsUnauthenticatedSeriesRequests() throws Exception {
+        // when / then
+        mvc.perform(get("/expenses/daily")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/expenses/monthly")).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(authPort, expenseSeries);
     }
 
     private static String basicAuth(String email, String password) {

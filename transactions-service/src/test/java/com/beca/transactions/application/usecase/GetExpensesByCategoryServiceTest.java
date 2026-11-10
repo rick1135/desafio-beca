@@ -41,7 +41,7 @@ class GetExpensesByCategoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GetExpensesByCategoryService(transactions, FIXED_CLOCK);
+        service = new GetExpensesByCategoryService(new ExpenseSelection(transactions, FIXED_CLOCK));
     }
 
     @Test
