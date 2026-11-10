@@ -24,7 +24,7 @@ public record ExpenseSeriesResponse(
     }
 
     public record ExpensePointResponse(
-            @Schema(description = "Período correspondente: YYYY-MM-DD (diário) ou YYYY-MM (mensal)", example = "2026-11-10")
+            @Schema(description = "Período correspondente: YYYY-MM-DD (diário) ou YYYY-MM (mensal)")
             String period,
 
             @Schema(description = "Total gasto no período", example = "250.00")

@@ -24,6 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 
 @Tag(name = "Análise de Despesas", description = "Agrupamento de despesas por categoria e séries temporais diárias e mensais")
+@ApiResponse(
+        responseCode = "503",
+        description = "Serviço de autenticação do MS1 indisponível",
+        content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = ApiErrorResponse.class))
+)
 @RestController
 @RequestMapping("/expenses")
 public class ExpenseController {

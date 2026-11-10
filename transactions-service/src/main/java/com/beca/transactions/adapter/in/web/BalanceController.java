@@ -39,6 +39,18 @@ public class BalanceController {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = ApiErrorResponse.class))
     )
+    @ApiResponse(
+            responseCode = "404",
+            description = "Conta de saldo não encontrada",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class))
+    )
+    @ApiResponse(
+            responseCode = "503",
+            description = "Serviço de autenticação do MS1 ou consulta de saldo indisponível",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class))
+    )
     @GetMapping("/balance")
     public ResponseEntity<BalanceResponse> getBalance(@AuthenticationPrincipal AuthenticatedUser user){
         var balance = getBalanceService.getBalance(user.id());

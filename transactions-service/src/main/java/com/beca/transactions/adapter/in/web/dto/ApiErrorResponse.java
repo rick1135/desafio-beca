@@ -11,7 +11,7 @@ public record ApiErrorResponse(
         @Schema(description = "Nome do erro HTTP", example = "Bad Request")
         String error,
 
-        @Schema(description = "Mensagem explicativa do erro", example = "Saldo insuficiente")
+        @Schema(description = "Mensagem explicativa do erro", example = "Intervalo de datas inválido")
         String message,
 
         @Schema(description = "Detalhes de campos específicos", example = "{\"amount\": \"Valor deve ser maior que zero\"}")

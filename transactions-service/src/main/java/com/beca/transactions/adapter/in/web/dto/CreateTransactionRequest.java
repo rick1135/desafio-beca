@@ -8,7 +8,7 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 
 public record CreateTransactionRequest(
-        @Schema(description = "Tipo da transação: DEPOSIT, EXPENSE ou TRANSFER", example = "EXPENSE")
+        @Schema(description = "Tipo da transação: DEPOSIT, WITHDRAW, TRANSFER ou PURCHASE", example = "PURCHASE")
         @NotNull(message = "Tipo é obrigatório")
         TransactionType type,
 
@@ -25,7 +25,7 @@ public record CreateTransactionRequest(
         @Size(max = 255, message = "Descrição deve ter no máximo 255 caracteres")
         String description,
 
-        @Schema(description = "Categoria da despesa (obrigatória quando o tipo for EXPENSE)", example = "ALIMENTACAO")
+        @Schema(description = "Categoria da despesa (obrigatória quando o tipo for PURCHASE)", example = "ALIMENTACAO")
         @Size(max = 255, message = "Categoria deve ter no máximo 255 caracteres")
         String category,
 

@@ -17,7 +17,7 @@ public record TransactionResponse(
         @Schema(description = "Identificador único da transação", example = "1")
         Long id,
 
-        @Schema(description = "Tipo da transação", example = "EXPENSE")
+        @Schema(description = "Tipo da transação", example = "PURCHASE")
         TransactionType type,
 
         @Schema(description = "Valor original da transação", example = "150.00")

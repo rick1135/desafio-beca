@@ -18,6 +18,9 @@ import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +72,25 @@ class OpenApiEndpointTest {
                 .andExpect(jsonPath("$.paths['/expenses/by-category']").exists())
                 .andExpect(jsonPath("$.paths['/expenses/daily']").exists())
                 .andExpect(jsonPath("$.paths['/expenses/monthly']").exists())
-                .andExpect(jsonPath("$.components.securitySchemes.basicAuth").exists());
+                .andExpect(jsonPath("$.components.securitySchemes.basicAuth").exists())
+                .andExpect(jsonPath("$.components.schemas.CreateTransactionRequest.properties.type.example")
+                        .value("PURCHASE"))
+                .andExpect(jsonPath("$.components.schemas.TransactionResponse.properties.type.example")
+                        .value("PURCHASE"))
+                .andExpect(jsonPath("$.paths['/transactions'].get.parameters[?(@.name == 'type')].example")
+                        .value(contains("PURCHASE")))
+                .andExpect(jsonPath("$.paths['/transactions'].post.requestBody.content['application/json']"
+                        + ".examples.Compra.value.type").value("PURCHASE"))
+                .andExpect(jsonPath("$.paths['/transactions'].post.requestBody.required").value(true))
+                .andExpect(jsonPath("$.paths['/transactions'].post.responses['201'].description")
+                        .value(containsString("REJECTED")))
+                .andExpect(jsonPath("$.paths['/transactions'].post.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/transactions'].post.responses['404']").exists())
+                .andExpect(jsonPath("$.paths['/transactions'].get.responses['400']").exists())
+                .andExpect(jsonPath("$.paths['/balance'].get.responses['404']").exists())
+                .andExpect(jsonPath("$.paths.*.*.responses['503'].description",
+                        hasSize(8)))
+                .andExpect(jsonPath("$.components.schemas.ExpensePointResponse.properties.period.example")
+                        .doesNotExist());
     }
 }
