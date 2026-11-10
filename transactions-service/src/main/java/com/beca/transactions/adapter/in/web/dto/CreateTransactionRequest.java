@@ -2,14 +2,17 @@ package com.beca.transactions.adapter.in.web.dto;
 
 import com.beca.transactions.domain.model.TransactionType;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 
 public record CreateTransactionRequest(
+        @Schema(description = "Tipo da transação: DEPOSIT, WITHDRAW, TRANSFER ou PURCHASE", example = "PURCHASE")
         @NotNull(message = "Tipo é obrigatório")
         TransactionType type,
 
+        @Schema(description = "Valor monetário da transação", example = "150.00")
         @NotNull(message = "Valor é obrigatório")
         @DecimalMin(value = "0.00", inclusive = false,
                 message = "Valor deve ser maior que zero")
@@ -17,19 +20,24 @@ public record CreateTransactionRequest(
                 message = "Valor deve ter até 17 dígitos inteiros e duas casas decimais")
         BigDecimal amount,
 
+        @Schema(description = "Descrição sucinta da transação", example = "Almoço de negócios")
         @NotBlank(message = "Descrição é obrigatória")
         @Size(max = 255, message = "Descrição deve ter no máximo 255 caracteres")
         String description,
 
+        @Schema(description = "Categoria da despesa (obrigatória quando o tipo for PURCHASE)", example = "ALIMENTACAO")
         @Size(max = 255, message = "Categoria deve ter no máximo 255 caracteres")
         String category,
 
+        @Schema(description = "ID do usuário destinatário (obrigatório quando o tipo for TRANSFER)", example = "2")
         @Positive(message = "ID do usuário de destino deve ser maior que zero")
         Long destinationUserId,
 
+        @Schema(description = "ID da transação original aprovada a ser corrigida", example = "10")
         @Positive(message = "ID da transação original deve ser maior que zero")
         Long originalTransactionId,
 
+        @Schema(description = "Motivo da correção (obrigatório se originalTransactionId informado)", example = "Valor digitado incorretamente")
         @Size(max = 255, message = "Motivo da correção deve ter no máximo 255 caracteres")
         String correctionReason
 ) {

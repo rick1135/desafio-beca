@@ -23,3 +23,14 @@ user-service:
 
 brasil-api:
   base-url: ${BRASIL_API_BASE_URL:https://brasilapi.com.br/api}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  paths-to-match:
+    - /transactions
+    - /transactions/**
+    - /balance
+    - /expenses/**
+  default-produces-media-type: application/json
+  override-with-generic-response: false
