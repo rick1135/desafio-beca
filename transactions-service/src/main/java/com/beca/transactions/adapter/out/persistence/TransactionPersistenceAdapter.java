@@ -33,6 +33,16 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
     }
 
     @Override
+    public List<Transaction> findCorrectionsByOriginalTransactionId(Long originalTransactionId, Long originUserId) {
+        return repository.findByOriginalTransactionIdAndOriginUserIdOrderByCreationDateDescIdDesc(
+                        originalTransactionId, originUserId
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Transaction> findApprovedByOriginUserId(Long userId) {
         return repository
                 .findByOriginUserIdAndStatus(userId, TransactionStatus.APPROVED)
@@ -95,7 +105,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 transaction.getOriginalTransactionId(),
                 transaction.getDescription(),
                 transaction.getCreationDate(),
-                transaction.getExchangeRates()
+                transaction.getExchangeRates(),
+                transaction.getCorrectionReason()
         );
     }
 
@@ -112,7 +123,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
                 entity.getOriginalTransactionId(),
                 entity.getDescription(),
                 entity.getCreationDate(),
-                entity.getExchangeRates()
+                entity.getExchangeRates(),
+                entity.getCorrectionReason()
         );
     }
 }

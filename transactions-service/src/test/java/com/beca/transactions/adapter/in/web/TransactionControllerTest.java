@@ -74,7 +74,7 @@ class TransactionControllerTest {
     @Test
     void returnsCreatedTransactionWithLocation() throws Exception {
         when(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
-                eq("Depósito de teste"), isNull(), isNull(), isNull()))
+                eq("Depósito de teste"), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(transaction(TransactionType.DEPOSIT, TransactionStatus.APPROVED, null));
 
         mvc.perform(post("/transactions")
@@ -92,9 +92,88 @@ class TransactionControllerTest {
     }
 
     @Test
+    @DisplayName("deve registrar correção vinculada à transação original com motivo da correção")
+    void createsCorrectionWithItsReason() throws Exception {
+        // given
+        given(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
+                eq("Correção"), isNull(), isNull(), eq(42L), eq("Valor incorreto")))
+                .willReturn(new Transaction(43L, TransactionType.DEPOSIT, new BigDecimal("25.00"),
+                        "Depósito", 1L, null, TransactionStatus.APPROVED, null, 42L,
+                        "Correção", Instant.parse("2026-11-06T12:00:00Z"),
+                        List.of(), "Valor incorreto"));
+
+        // when / then
+        mvc.perform(post("/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"DEPOSIT","amount":25.00,"description":"Correção",
+                                 "originalTransactionId":42,"correctionReason":"Valor incorreto"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(43))
+                .andExpect(jsonPath("$.originalTransactionId").value(42))
+                .andExpect(jsonPath("$.correctionReason").value("Valor incorreto"));
+
+        then(service).should().create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
+                eq("Correção"), isNull(), isNull(), eq(42L), eq("Valor incorreto"));
+    }
+
+    @Test
+    @DisplayName("deve retornar 400 quando originalTransactionId for enviado sem correctionReason")
+    void rejectsCorrectionWithoutReasonBeforeCallingService() throws Exception {
+        // when / then
+        mvc.perform(post("/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"DEPOSIT","amount":25.00,"description":"Correção sem motivo",
+                                 "originalTransactionId":42}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.correctionReason").exists());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("deve retornar 400 quando correctionReason for enviado sem originalTransactionId")
+    void rejectsCorrectionReasonWithoutOriginalIdBeforeCallingService() throws Exception {
+        // when / then
+        mvc.perform(post("/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"DEPOSIT","amount":25.00,"description":"Depósito comum",
+                                 "correctionReason":"Motivo órfão"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.originalTransactionId").exists());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("deve listar correções vinculadas a uma transação original do usuário autenticado")
+    void listsCorrectionsForOriginalTransaction() throws Exception {
+        // given
+        Transaction correction = new Transaction(43L, TransactionType.DEPOSIT, new BigDecimal("25.00"),
+                "Depósito", 1L, null, TransactionStatus.APPROVED, null, 42L,
+                "Correção", Instant.parse("2026-11-06T12:30:00Z"),
+                List.of(), "Valor lançado incorretamente");
+        given(getTransactionService.getCorrections(42L, 1L)).willReturn(List.of(correction));
+
+        // when / then
+        mvc.perform(get("/transactions/42/corrections"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(43))
+                .andExpect(jsonPath("$[0].originalTransactionId").value(42))
+                .andExpect(jsonPath("$[0].correctionReason").value("Valor lançado incorretamente"));
+
+        then(getTransactionService).should().getCorrections(42L, 1L);
+    }
+
+    @Test
     void returnsPersistedRejectionWithReason() throws Exception {
         when(service.create(eq(1L), eq(TransactionType.WITHDRAW), cmpEq(new BigDecimal("25.00")),
-                eq("Retirada de teste"), isNull(), isNull(), isNull()))
+                eq("Retirada de teste"), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(transaction(TransactionType.WITHDRAW, TransactionStatus.REJECTED,
                         "Limite diário excedido"));
 
@@ -129,7 +208,7 @@ class TransactionControllerTest {
     void ignoresForgedUserIdHeaderAndUsesAuthenticatedPrincipal() throws Exception {
         // given
         when(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
-                eq("Depósito de teste"), isNull(), isNull(), isNull()))
+                eq("Depósito de teste"), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(transaction(TransactionType.DEPOSIT, TransactionStatus.APPROVED, null));
 
         // when / then
@@ -143,13 +222,13 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.originUserId").value(1));
 
         verify(service).create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("25.00")),
-                eq("Depósito de teste"), isNull(), isNull(), isNull());
+                eq("Depósito de teste"), isNull(), isNull(), isNull(), isNull());
     }
 
     @Test
     void createsTransferWithRecipient() throws Exception {
         when(service.create(eq(1L), eq(TransactionType.TRANSFER), cmpEq(new BigDecimal("25.00")),
-                eq("Transferência de teste"), isNull(), eq(2L), isNull()))
+                eq("Transferência de teste"), isNull(), eq(2L), isNull(), isNull()))
                 .thenReturn(new Transaction(42L, TransactionType.TRANSFER, new BigDecimal("25.00"),
                         null, 1L, 2L, TransactionStatus.APPROVED, null, null,
                         "Transferência de teste", Instant.parse("2026-11-06T12:00:00Z")));
@@ -170,7 +249,7 @@ class TransactionControllerTest {
     @Test
     void createsPurchaseWithCategory() throws Exception {
         when(service.create(eq(1L), eq(TransactionType.PURCHASE), cmpEq(new BigDecimal("25.00")),
-                eq("Compra de teste"), eq("Alimentação"), isNull(), isNull()))
+                eq("Compra de teste"), eq("Alimentação"), isNull(), isNull(), isNull()))
                 .thenReturn(new Transaction(42L, TransactionType.PURCHASE, new BigDecimal("25.00"),
                         "Alimentação", 1L, null, TransactionStatus.APPROVED, null, null,
                         "Compra de teste", Instant.parse("2026-11-06T12:00:00Z")));
@@ -198,7 +277,7 @@ class TransactionControllerTest {
                         "FECHAMENTO PTAX")
         );
         when(service.create(eq(1L), eq(TransactionType.PURCHASE), cmpEq(new BigDecimal("100.00")),
-                eq("Compra internacional"), eq("Viagem"), isNull(), isNull()))
+                eq("Compra internacional"), eq("Viagem"), isNull(), isNull(), isNull()))
                 .thenReturn(new Transaction(42L, TransactionType.PURCHASE, new BigDecimal("100.00"),
                         "Viagem", 1L, null, TransactionStatus.APPROVED, null, null,
                         "Compra internacional", Instant.parse("2026-11-06T12:00:00Z"), rates));
@@ -227,7 +306,7 @@ class TransactionControllerTest {
     @Test
     void returnsCreatedTransactionWhenExchangeIsUnavailable() throws Exception {
         when(service.create(eq(1L), eq(TransactionType.DEPOSIT), cmpEq(new BigDecimal("50.00")),
-                eq("Depósito sem câmbio"), isNull(), isNull(), isNull()))
+                eq("Depósito sem câmbio"), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new Transaction(42L, TransactionType.DEPOSIT, new BigDecimal("50.00"),
                         null, 1L, null, TransactionStatus.APPROVED, null, null,
                         "Depósito sem câmbio", Instant.parse("2026-11-06T12:00:00Z"), List.of()));
@@ -282,7 +361,7 @@ class TransactionControllerTest {
         mvc = MockMvcBuilders.standaloneSetup(
                         new TransactionController(new CreateTransactionService(
                                 accounts, users, new ProcessTransactionService(repository, lock),
-                                exchangeRates), mock(GetTransactionService.class)))
+                                exchangeRates, repository), mock(GetTransactionService.class)))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

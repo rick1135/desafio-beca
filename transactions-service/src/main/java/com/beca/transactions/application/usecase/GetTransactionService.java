@@ -34,6 +34,15 @@ public class GetTransactionService {
         return transaction;
     }
 
+    public List<Transaction> getCorrections(Long originalId, Long authenticatedUserId) {
+        Transaction original = transactions.findById(originalId)
+                .orElseThrow(() -> new TransactionNotFoundException(originalId));
+        if (!original.getOriginUserId().equals(authenticatedUserId)) {
+            throw new ForbiddenTransactionAccessException();
+        }
+        return transactions.findCorrectionsByOriginalTransactionId(originalId, authenticatedUserId);
+    }
+
     public List<Transaction> list(Long authenticatedUserId, LocalDate startDate, LocalDate endDate, TransactionType type) {
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new InvalidTransactionException("A data inicial deve ser anterior ou igual à data final.");

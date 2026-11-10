@@ -30,6 +30,47 @@ class GetTransactionServiceTest {
     @Mock private TransactionRepositoryPort transactions;
 
     @Test
+    @DisplayName("lista correções vinculadas quando o usuário é o titular da transação original")
+    void testGetCorrections_WhenUserOwnsOriginal_ShouldReturnCorrections() {
+        // given
+        Transaction original = transaction(1L);
+        Transaction correction = transaction(1L);
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(transactions.findCorrectionsByOriginalTransactionId(42L, 1L))
+                .thenReturn(List.of(correction));
+
+        // when
+        List<Transaction> result = new GetTransactionService(transactions).getCorrections(42L, 1L);
+
+        // then
+        assertEquals(List.of(correction), result);
+    }
+
+    @Test
+    @DisplayName("lança exceção 403 ao consultar correções de transação pertencente a outro usuário")
+    void testGetCorrections_WhenOriginalBelongsToAnotherUser_ShouldThrowForbidden() {
+        // given
+        Transaction original = transaction(1L);
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+
+        // when / then
+        assertThrows(ForbiddenTransactionAccessException.class,
+                () -> new GetTransactionService(transactions).getCorrections(42L, 2L));
+    }
+
+    @Test
+    @DisplayName("lança exceção 404 ao consultar correções de transação inexistente")
+    void testGetCorrections_WhenOriginalIsMissing_ShouldThrowNotFound() {
+        // given
+        when(transactions.findById(42L)).thenReturn(Optional.empty());
+
+        // when / then
+        assertThrows(TransactionNotFoundException.class,
+                () -> new GetTransactionService(transactions).getCorrections(42L, 1L));
+    }
+
+
+    @Test
     @DisplayName("retorna transação quando pertence ao usuário autenticado")
     void testGetById_WhenTransactionBelongsToUser_ShouldReturnTransaction() {
         // given

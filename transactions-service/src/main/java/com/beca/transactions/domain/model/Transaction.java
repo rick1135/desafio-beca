@@ -23,19 +23,30 @@ public class Transaction {
     private final String description;
     private final Instant creationDate;
     private final List<ExchangeRate> exchangeRates;
+    private final String correctionReason;
 
     public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
                        Long originUserId, Long destinationUserId, TransactionStatus status,
                        String rejectionReason, Long originalTransactionId,
                        String description, Instant creationDate) {
-        this(id, type, amount, category, originUserId, destinationUserId, status,
-                rejectionReason, originalTransactionId, description, creationDate, List.of());
+        this(id, type, amount, category, originUserId, destinationUserId,
+                status, rejectionReason, originalTransactionId,
+                description, creationDate, List.of(), null);
     }
 
     public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
                        Long originUserId, Long destinationUserId, TransactionStatus status,
                        String rejectionReason, Long originalTransactionId,
                        String description, Instant creationDate, List<ExchangeRate> exchangeRates) {
+        this(id, type, amount, category, originUserId, destinationUserId,
+                status, rejectionReason, originalTransactionId,
+                description, creationDate, exchangeRates, null);
+    }
+
+    public Transaction(Long id, TransactionType type, BigDecimal amount, String category,
+                       Long originUserId, Long destinationUserId, TransactionStatus status,
+                       String rejectionReason, Long originalTransactionId,
+                       String description, Instant creationDate, List<ExchangeRate> exchangeRates, String correctionReason) {
         this.id = id;
         if(type==TransactionType.PURCHASE && category==null) {
             throw new InvalidTransactionException("Categoria não pode ser nula");
@@ -91,6 +102,21 @@ public class Transaction {
                     "Motivo da rejeição deve ter no máximo 255 caracteres"
             );
         }
+        if (originalTransactionId != null && originalTransactionId <= 0) {
+            throw new InvalidTransactionException(
+                    "Transação original deve ter ID maior que zero"
+            );
+        }
+        if (originalTransactionId == null && correctionReason != null) {
+            throw new InvalidTransactionException(
+                    "ID da transação original é obrigatório quando há motivo da correção"
+            );
+        }
+        if (correctionReason != null && (correctionReason.isBlank() || correctionReason.length() > 255)) {
+            throw new InvalidTransactionException(
+                    "Motivo da correção deve ter entre 1 e 255 caracteres"
+            );
+        }
         if (exchangeRates == null || exchangeRates.stream().anyMatch(Objects::isNull)) {
             throw new InvalidTransactionException(
                     "Cotações de câmbio não podem ser nulas"
@@ -107,6 +133,7 @@ public class Transaction {
         this.description = description;
         this.creationDate = creationDate;
         this.exchangeRates = List.copyOf(exchangeRates);
+        this.correctionReason = correctionReason;
     }
 
     public TransactionType getType() {
@@ -157,9 +184,14 @@ public class Transaction {
         return exchangeRates;
     }
 
+    public String getCorrectionReason() {
+        return correctionReason;
+    }
+
     public Transaction withExchangeRates(List<ExchangeRate> rates) {
         return new Transaction(id, type, amount, category, originUserId, destinationUserId,
-                status, rejectionReason, originalTransactionId, description, creationDate, rates);
+                status, rejectionReason, originalTransactionId, description, creationDate, rates,
+                correctionReason);
     }
 
     public Transaction reject(String reason) {
@@ -175,7 +207,8 @@ public class Transaction {
                 originalTransactionId,
                 description,
                 creationDate,
-                exchangeRates
+                exchangeRates,
+                correctionReason
         );
     }
 

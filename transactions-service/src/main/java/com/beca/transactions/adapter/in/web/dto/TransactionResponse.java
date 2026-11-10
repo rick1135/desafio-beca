@@ -26,7 +26,8 @@ public record TransactionResponse(
         String rejectionReason,
         Long originalTransactionId,
         boolean conversionAvailable,
-        List<ConvertedAmount> conversions
+        List<ConvertedAmount> conversions,
+        String correctionReason
 ) {
     public static TransactionResponse from(Transaction transaction) {
         List<ConvertedAmount> conversions = transaction.getExchangeRates().stream()
@@ -37,7 +38,8 @@ public record TransactionResponse(
                 transaction.getCreationDate(), transaction.getDescription(), transaction.getCategory(),
                 transaction.getOriginUserId(), transaction.getDestinationUserId(),
                 transaction.getStatus(), transaction.getRejectionReason(),
-                transaction.getOriginalTransactionId(), conversions.size() == 2, conversions);
+                transaction.getOriginalTransactionId(), conversions.size() == 2, conversions,
+                transaction.getCorrectionReason());
     }
 
     private static ConvertedAmount converted(BigDecimal amount, ExchangeRate rate) {

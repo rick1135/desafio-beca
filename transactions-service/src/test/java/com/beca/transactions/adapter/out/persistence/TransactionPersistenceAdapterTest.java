@@ -142,6 +142,7 @@ public class TransactionPersistenceAdapterTest {
 
     @Test
     void devePreservarVinculoDaCorrecaoETransacaoOriginal() {
+        // given
         Instant data = Instant.parse("2026-11-04T12:00:00Z");
         Transaction original = adapter.save(new Transaction(
                 null, TransactionType.DEPOSIT, new BigDecimal("25.00"),
@@ -151,21 +152,32 @@ public class TransactionPersistenceAdapterTest {
         Transaction correcao = adapter.save(new Transaction(
                 null, TransactionType.DEPOSIT, new BigDecimal("30.00"),
                 null, 1L, null, TransactionStatus.APPROVED,
-                null, original.getId(), "Correção do depósito", data.plusSeconds(60)
+                null, original.getId(), "Correção do depósito", data.plusSeconds(60),
+                List.of(), "Valor original incorreto"
         ));
 
         entityManager.clear();
+
+        // when
         Transaction originalEncontrada = adapter.findById(original.getId()).orElseThrow();
         Transaction correcaoEncontrada = adapter.findById(correcao.getId()).orElseThrow();
+        List<Transaction> correcoesDoTitular = adapter.findCorrectionsByOriginalTransactionId(original.getId(), 1L);
+        List<Transaction> correcoesDeOutroUsuario = adapter.findCorrectionsByOriginalTransactionId(original.getId(), 2L);
 
+        // then
         assertNotEquals(originalEncontrada.getId(), correcaoEncontrada.getId());
         assertEquals(original.getId(), correcaoEncontrada.getOriginalTransactionId());
         assertEquals(new BigDecimal("30.00"), correcaoEncontrada.getAmount());
         assertEquals("Correção do depósito", correcaoEncontrada.getDescription());
+        assertEquals("Valor original incorreto", correcaoEncontrada.getCorrectionReason());
+        assertEquals(List.of(correcao.getId()),
+                correcoesDoTitular.stream().map(Transaction::getId).toList());
+        assertTrue(correcoesDeOutroUsuario.isEmpty());
         assertEquals(data.plusSeconds(60), correcaoEncontrada.getCreationDate());
         assertNull(originalEncontrada.getOriginalTransactionId());
         assertEquals(new BigDecimal("25.00"), originalEncontrada.getAmount());
         assertEquals("Depósito original", originalEncontrada.getDescription());
+        assertNull(originalEncontrada.getCorrectionReason());
         assertEquals(data, originalEncontrada.getCreationDate());
     }
 

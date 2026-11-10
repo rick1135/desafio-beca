@@ -43,6 +43,8 @@ public class GlobalExceptionHandler {
                 case "categoryValid" -> "category";
                 case "destinationValid" -> "destinationUserId";
                 case "destinationOnlyForTransfer" -> "destinationUserId";
+                case "correctionReasonValid" -> "correctionReason";
+                case "correctionReasonOnlyForCorrection" -> "originalTransactionId";
                 default -> error.getField();
             };
             details.putIfAbsent(field, error.getDefaultMessage());

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -417,6 +418,72 @@ public class TransactionTest {
 
         //then
         assertEquals(originalId, correction.getOriginalTransactionId());
+    }
+
+    @Test
+    @DisplayName("deve preservar motivo da correção ao adicionar cotações e rejeitar")
+    void testCorrection_WhenAddingExchangeRatesAndRejecting_ShouldPreserveCorrectionReason() {
+        // given
+        Transaction correction = new Transaction(
+                null, TransactionType.DEPOSIT, new BigDecimal("25.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, 10L,
+                "Correção", CREATION_DATE, List.of(), "Valor informado incorretamente"
+        );
+
+        // when
+        Transaction withRates = correction.withExchangeRates(List.of());
+        Transaction rejected = withRates.reject("Limite excedido");
+
+        // then
+        assertEquals("Valor informado incorretamente", withRates.getCorrectionReason());
+        assertEquals("Valor informado incorretamente", rejected.getCorrectionReason());
+        assertEquals("Limite excedido", rejected.getRejectionReason());
+    }
+
+    @Test
+    @DisplayName("rejeita correção com ID de transação original não positivo")
+    void testCorrection_WhenOriginalIdIsNotPositive_ShouldThrowException() {
+        // given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        // when / then
+        for (Long originalId : new Long[]{0L, -1L}) {
+            assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                    null, TransactionType.DEPOSIT, amount, null,
+                    1L, null, TransactionStatus.APPROVED, null, originalId,
+                    "Correção", CREATION_DATE, List.of(), "Valor incorreto"
+            ));
+        }
+    }
+
+    @Test
+    @DisplayName("rejeita motivo da correção quando não há transação original vinculada")
+    void testTransaction_WhenCorrectionReasonHasNoOriginalId_ShouldThrowException() {
+        // given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        // when / then
+        assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                null, TransactionType.DEPOSIT, amount, null,
+                1L, null, TransactionStatus.APPROVED, null, null,
+                "Depósito normal", CREATION_DATE, List.of(), "Motivo sem original"
+        ));
+    }
+
+    @Test
+    @DisplayName("rejeita motivo da correção em branco ou acima de 255 caracteres")
+    void testCorrection_WhenCorrectionReasonIsBlankOrTooLong_ShouldThrowException() {
+        // given
+        BigDecimal amount = new BigDecimal("25.00");
+
+        // when / then
+        for (String invalidReason : new String[]{"", "   ", "a".repeat(256)}) {
+            assertThrows(InvalidTransactionException.class, () -> new Transaction(
+                    null, TransactionType.DEPOSIT, amount, null,
+                    1L, null, TransactionStatus.APPROVED, null, 10L,
+                    "Correção", CREATION_DATE, List.of(), invalidReason
+            ));
+        }
     }
 
     @Test
