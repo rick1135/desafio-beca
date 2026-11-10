@@ -14,6 +14,14 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.input.BOMInputStream;
 import java.nio.charset.StandardCharsets;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +31,7 @@ import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.util.Map;
 
+@Tag(name = "Usuários", description = "Operações de gerenciamento de usuários")
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -43,6 +52,24 @@ public class UserController {
         this.importUsersUseCase = importUsersUseCase;
     }
 
+    @Operation(summary = "Cadastrar usuário")
+    @ApiResponse(
+            responseCode = "201",
+            description = "Usuário cadastrado",
+            headers = @Header(
+                    name = "Location",
+                    description = "Caminho do usuário cadastrado",
+                    schema = @Schema(type = "string", example = "/users/1")
+            ),
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponse.class))
+    )
+    @ApiResponse(responseCode = "400", description = "Dados de cadastro inválidos",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "E-mail já cadastrado",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
     @PostMapping
     public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
         User user = createUserUseCase.create(
@@ -63,6 +90,9 @@ public class UserController {
         return ResponseEntity.created(location).body(response);
     }
 
+    @Operation(summary = "Listar usuários")
+    @ApiResponse(responseCode = "200", description = "Lista de usuários",
+            useReturnTypeSchema = true)
     @GetMapping
     public ResponseEntity<List<UserResponse>> getUsers() {
         List<UserResponse> users = getUsersUseCase.getUsers()
@@ -73,12 +103,30 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
+    @Operation(summary = "Consultar usuário por ID")
+    @ApiResponse(responseCode = "200", description = "Usuário encontrado",
+            useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         User user = getUserByIdUseCase.getUserById(id);
         return ResponseEntity.ok(toResponse(user));
     }
 
+    @Operation(summary = "Atualizar nome e e-mail de um usuário")
+    @ApiResponse(responseCode = "200", description = "Usuário atualizado",
+            useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "400", description = "Dados de atualização inválidos",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "E-mail já usado por outro usuário",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> update(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
         User user = updateUserUseCase.update(
@@ -90,17 +138,34 @@ public class UserController {
         return ResponseEntity.ok(toResponse(user));
     }
 
+    @Operation(summary = "Excluir usuário por ID")
+    @ApiResponse(responseCode = "204", description = "Usuário excluído", content = @Content)
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUserById(@PathVariable Long id) {
         deleteUserUseCase.delete(id);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(
+            summary = "Importar usuários de um CSV",
+            description = "Envie um CSV UTF-8 separado por vírgulas com o cabeçalho "
+                    + "nome,cpf,email,senha. A resposta informa o resultado de cada registro."
+    )
+    @ApiResponse(responseCode = "200", description = "Arquivo processado, com resultado por registro",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = UploadResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Arquivo vazio, ilegível ou com cabeçalho inválido",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ApiErrorResponse.class)))
     @PostMapping(
             value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> upload(@Parameter(description = "Arquivo CSV com os usuários")
+                                        @RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(new ApiErrorResponse(
                     400,
