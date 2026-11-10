@@ -35,20 +35,25 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.AdditionalMatchers.cmpEq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class TransactionControllerTest {
     private CreateTransactionService service;
+    private GetTransactionService getTransactionService;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         authenticateAs(1L);
         service = mock(CreateTransactionService.class);
+        getTransactionService = mock(GetTransactionService.class);
         mvc = MockMvcBuilders.standaloneSetup(new TransactionController(
-                        service, mock(GetTransactionService.class)))
+                        service, getTransactionService))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -292,6 +297,51 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.message").value("Não é possível realizar transferência para si mesmo"));
 
         verifyNoInteractions(repository, accounts, lock, users, exchangeRates);
+    }
+
+    @Test
+    @DisplayName("deve listar transações do usuário autenticado filtrando por período e tipo")
+    void listsTransactionsWithPeriodAndTypeFilters() throws Exception {
+        // given
+        LocalDate start = LocalDate.parse("2026-11-01");
+        LocalDate end = LocalDate.parse("2026-11-06");
+        Transaction purchase = new Transaction(42L, TransactionType.PURCHASE, new BigDecimal("50.00"),
+                "Alimentação", 1L, null, TransactionStatus.APPROVED, null, null,
+                "Almoço", Instant.parse("2026-11-06T15:00:00Z"));
+        given(getTransactionService.list(1L, start, end, TransactionType.PURCHASE))
+                .willReturn(List.of(purchase));
+
+        // when / then
+        mvc.perform(get("/transactions")
+                        .param("startDate", "2026-11-01")
+                        .param("endDate", "2026-11-06")
+                        .param("type", "PURCHASE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(42))
+                .andExpect(jsonPath("$[0].type").value("PURCHASE"))
+                .andExpect(jsonPath("$[0].category").value("Alimentação"))
+                .andExpect(jsonPath("$[0].amount").value(50.00));
+
+        then(getTransactionService).should().list(1L, start, end, TransactionType.PURCHASE);
+    }
+
+    @Test
+    @DisplayName("deve retornar 400 ao listar transações com período inválido")
+    void rejectsListWhenDateRangeIsInvalid() throws Exception {
+        // given
+        LocalDate start = LocalDate.parse("2026-11-10");
+        LocalDate end = LocalDate.parse("2026-11-01");
+        given(getTransactionService.list(1L, start, end, null))
+                .willThrow(new com.beca.transactions.domain.exception.InvalidTransactionException(
+                        "A data inicial deve ser anterior ou igual à data final."));
+
+        // when / then
+        mvc.perform(get("/transactions")
+                        .param("startDate", "2026-11-10")
+                        .param("endDate", "2026-11-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("A data inicial deve ser anterior ou igual à data final."));
     }
 
     private Transaction transaction(TransactionType type, TransactionStatus status, String reason) {
