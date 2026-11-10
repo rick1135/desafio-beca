@@ -42,12 +42,12 @@ class ProcessTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("verifica correção única somente após adquirir o lock")
+    @DisplayName("verifica correção única aprovada somente após adquirir o lock")
     void testCorrection_WhenOriginalWasAlreadyCorrected_ShouldRejectAfterLock() {
         // given
         Transaction candidate = correction();
         when(transactions.findById(42L)).thenReturn(java.util.Optional.of(original()));
-        when(transactions.existsByOriginalTransactionId(42L)).thenReturn(true);
+        when(transactions.existsByOriginalTransactionIdAndStatus(42L, TransactionStatus.APPROVED)).thenReturn(true);
 
         // when / then
         assertThrows(InvalidTransactionException.class, () -> processor.process(candidate, null, null));
@@ -55,12 +55,12 @@ class ProcessTransactionServiceTest {
         InOrder order = inOrder(accountLock, transactions);
         order.verify(accountLock).lockForUser(1L);
         order.verify(transactions).findById(42L);
-        order.verify(transactions).existsByOriginalTransactionId(42L);
+        order.verify(transactions).existsByOriginalTransactionIdAndStatus(42L, TransactionStatus.APPROVED);
         verify(transactions, never()).save(any());
     }
 
     @Test
-    @DisplayName("salva correção após revalidar original e ausência de outra correção")
+    @DisplayName("salva correção após revalidar original e ausência de outra correção aprovada")
     void testCorrection_WhenUnique_ShouldSaveAfterLock() {
         // given
         Transaction candidate = correction();
@@ -73,8 +73,41 @@ class ProcessTransactionServiceTest {
         InOrder order = inOrder(accountLock, transactions);
         order.verify(accountLock).lockForUser(1L);
         order.verify(transactions).findById(42L);
-        order.verify(transactions).existsByOriginalTransactionId(42L);
+        order.verify(transactions).existsByOriginalTransactionIdAndStatus(42L, TransactionStatus.APPROVED);
         order.verify(transactions).save(same(candidate));
+    }
+
+    @Test
+    @DisplayName("permite nova correção após uma tentativa de correção rejeitada por saldo insuficiente")
+    void testCorrection_WhenPreviousAttemptWasRejected_ShouldAllowRetryAndApprove() {
+        // given
+        Transaction originalWithdraw = new Transaction(42L, TransactionType.WITHDRAW, money("50.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, null, "Retirada original", CREATION_DATE);
+        Transaction rejectedAttempt = new Transaction(null, TransactionType.WITHDRAW, money("120.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, 42L, "Tentativa acima do saldo", CREATION_DATE,
+                List.of(), "Valor digitado errado");
+        Transaction validCorrection = new Transaction(null, TransactionType.WITHDRAW, money("80.00"), null,
+                1L, null, TransactionStatus.APPROVED, null, 42L, "Correção válida", CREATION_DATE,
+                List.of(), "Valor correto era 80");
+        AccountBalance account = account("100.00", "800.00", "500.00");
+
+        when(transactions.findById(42L)).thenReturn(java.util.Optional.of(originalWithdraw));
+        when(transactions.existsByOriginalTransactionIdAndStatus(42L, TransactionStatus.APPROVED)).thenReturn(false);
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(originalWithdraw));
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(originalWithdraw));
+        when(transactions.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        Transaction firstResult = processor.process(rejectedAttempt, account, null);
+        Transaction secondResult = processor.process(validCorrection, account, null);
+
+        // then
+        assertEquals(TransactionStatus.REJECTED, firstResult.getStatus());
+        assertEquals("Saldo insuficiente", firstResult.getRejectionReason());
+        assertEquals(42L, firstResult.getOriginalTransactionId());
+        assertEquals(TransactionStatus.APPROVED, secondResult.getStatus());
+        assertSame(validCorrection, secondResult);
     }
 
     private Transaction original() {

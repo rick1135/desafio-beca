@@ -45,8 +45,8 @@ public class TransactionPersistenceAdapter implements TransactionRepositoryPort 
     }
 
     @Override
-    public boolean existsByOriginalTransactionId(Long originalTransactionId) {
-        return repository.existsByOriginalTransactionId(originalTransactionId);
+    public boolean existsByOriginalTransactionIdAndStatus(Long originalTransactionId, TransactionStatus status) {
+        return repository.existsByOriginalTransactionIdAndStatus(originalTransactionId, status);
     }
 
     private boolean isCorrectionUniqueViolation(Throwable error) {

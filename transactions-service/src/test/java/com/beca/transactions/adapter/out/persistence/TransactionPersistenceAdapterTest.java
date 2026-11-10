@@ -183,25 +183,33 @@ public class TransactionPersistenceAdapterTest {
     }
 
     @Test
-    void deveImpedirSegundaCorrecaoPeloIndiceUnico() {
+    void devePermitirNovaCorrecaoAposTentativaRejeitadaEImpedirSegundaCorrecaoAprovada() {
         // given
         Transaction original = adapter.save(new Transaction(null, TransactionType.DEPOSIT,
                 new BigDecimal("25.00"), null, 1L, null, TransactionStatus.APPROVED,
                 null, null, "Original", Instant.parse("2026-11-04T12:00:00Z")));
-        Transaction primeira = new Transaction(null, TransactionType.DEPOSIT,
-                new BigDecimal("30.00"), null, 1L, null, TransactionStatus.APPROVED,
-                null, original.getId(), "Primeira correção", Instant.parse("2026-11-04T12:01:00Z"),
-                List.of(), "Valor incorreto");
-        adapter.save(primeira);
+        Transaction tentativaRejeitada = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("5.00"), null, 1L, null, TransactionStatus.REJECTED,
+                "Saldo insuficiente", original.getId(), "Tentativa rejeitada",
+                Instant.parse("2026-11-04T12:00:30Z"), List.of(), "Valor incorreto");
+        adapter.save(tentativaRejeitada);
 
-        Transaction segunda = new Transaction(null, TransactionType.DEPOSIT,
+        assertFalse(adapter.existsByOriginalTransactionIdAndStatus(original.getId(), TransactionStatus.APPROVED));
+
+        Transaction primeiraAprovada = new Transaction(null, TransactionType.DEPOSIT,
+                new BigDecimal("30.00"), null, 1L, null, TransactionStatus.APPROVED,
+                null, original.getId(), "Primeira correção aprovada", Instant.parse("2026-11-04T12:01:00Z"),
+                List.of(), "Valor incorreto");
+        adapter.save(primeiraAprovada);
+
+        Transaction segundaAprovada = new Transaction(null, TransactionType.DEPOSIT,
                 new BigDecimal("35.00"), null, 1L, null, TransactionStatus.APPROVED,
-                null, original.getId(), "Segunda correção", Instant.parse("2026-11-04T12:02:00Z"),
+                null, original.getId(), "Segunda correção aprovada", Instant.parse("2026-11-04T12:02:00Z"),
                 List.of(), "Novo valor");
 
         // when / then
-        assertTrue(adapter.existsByOriginalTransactionId(original.getId()));
-        assertThrows(InvalidTransactionException.class, () -> adapter.save(segunda));
+        assertTrue(adapter.existsByOriginalTransactionIdAndStatus(original.getId(), TransactionStatus.APPROVED));
+        assertThrows(InvalidTransactionException.class, () -> adapter.save(segundaAprovada));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.beca.transactions.application.usecase;
 import com.beca.transactions.domain.model.AccountBalance;
 import com.beca.transactions.domain.model.BalanceRules;
 import com.beca.transactions.domain.model.Transaction;
+import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.exception.InvalidTransactionException;
 import com.beca.transactions.application.exception.ForbiddenTransactionAccessException;
@@ -43,7 +44,7 @@ public class ProcessTransactionService {
                 throw new ForbiddenTransactionAccessException();
             }
             candidate.validateCorrectionOf(original);
-            if (transactions.existsByOriginalTransactionId(originalId)) {
+            if (transactions.existsByOriginalTransactionIdAndStatus(originalId, TransactionStatus.APPROVED)) {
                 throw new InvalidTransactionException("Esta transação já foi corrigida");
             }
         }

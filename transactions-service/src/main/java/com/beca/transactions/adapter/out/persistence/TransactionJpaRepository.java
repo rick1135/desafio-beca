@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 public interface TransactionJpaRepository extends JpaRepository<TransactionEntity, Long> {
-    boolean existsByOriginalTransactionId(Long originalTransactionId);
+    boolean existsByOriginalTransactionIdAndStatus(Long originalTransactionId, TransactionStatus status);
     List<TransactionEntity> findByOriginalTransactionIdAndOriginUserIdOrderByCreationDateDescIdDesc(
             Long originalTransactionId, Long originUserId
     );
