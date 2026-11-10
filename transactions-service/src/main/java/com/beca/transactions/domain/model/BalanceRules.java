@@ -2,6 +2,7 @@ package com.beca.transactions.domain.model;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -102,6 +103,32 @@ public class BalanceRules {
                 return new OutflowDecision(false, "Limite diário excedido");
             }
         }
+        return new OutflowDecision(true, null);
+    }
+
+    public OutflowDecision evaluateTransferRecipientReversal(
+            AccountBalance recipientAccount,
+            BalanceSummary recipientSummary,
+            Transaction original,
+            Transaction correction
+    ) {
+        if (original.getType() != TransactionType.TRANSFER) {
+            return new OutflowDecision(true, null);
+        }
+        Long originalRecipient = original.getDestinationUserId();
+        Long newRecipient = correction.getDestinationUserId();
+        BigDecimal reduction = Objects.equals(originalRecipient, newRecipient)
+                ? original.getAmount().subtract(correction.getAmount())
+                : original.getAmount();
+
+        if (reduction.signum() <= 0) {
+            return new OutflowDecision(true, null);
+        }
+
+        if (recipientSummary.effectiveBalance().compareTo(reduction) < 0) {
+            return new OutflowDecision(false, "Saldo do destinatário insuficiente para estorno da transferência");
+        }
+
         return new OutflowDecision(true, null);
     }
 

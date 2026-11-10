@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -68,8 +69,9 @@ public class CreateTransactionService {
                 List.of(), correctionReason
         );
 
+        Transaction original = null;
         if (originalTransactionId != null) {
-            Transaction original = transactions.findById(originalTransactionId)
+            original = transactions.findById(originalTransactionId)
                     .orElseThrow(() -> new TransactionNotFoundException(originalTransactionId));
             if (!original.getOriginUserId().equals(originUserId)) {
                 throw new ForbiddenTransactionAccessException();
@@ -80,6 +82,7 @@ public class CreateTransactionService {
         candidate = candidate.withExchangeRates(loadExchangeRates(now));
         String rejectionReason = null;
         AccountBalance account = null;
+        AccountBalance recipientAccount = null;
 
         if (type == TransactionType.TRANSFER) {
             try {
@@ -99,6 +102,26 @@ public class CreateTransactionService {
             }
         }
 
+        if (original != null && original.getType() == TransactionType.TRANSFER && rejectionReason == null) {
+            Long originalRecipientId = original.getDestinationUserId();
+            BigDecimal reduction = Objects.equals(originalRecipientId, destinationUserId)
+                    ? original.getAmount().subtract(amount)
+                    : original.getAmount();
+            if (reduction.signum() > 0) {
+                try {
+                    recipientAccount = accounts.findByUserId(originalRecipientId).orElse(null);
+                    if (recipientAccount == null) {
+                        rejectionReason = "Conta de saldo não encontrada";
+                    }
+                } catch (ExternalServiceUnavailableException ex) {
+                    rejectionReason = MOCK_UNAVAILABLE;
+                }
+            }
+        }
+
+        if (recipientAccount != null) {
+            return processTransactionService.process(candidate, account, recipientAccount, rejectionReason);
+        }
         return processTransactionService.process(candidate, account, rejectionReason);
     }
 

@@ -157,6 +157,86 @@ class BalanceRulesTest {
         assertEquals(money("80.00"), newRecipientSummary.effectiveBalance());
     }
 
+    @Test
+    @DisplayName("aprova estorno de destinatário se a transação original não for transferência")
+    void evaluateTransferRecipientReversal_WhenNonTransfer_ShouldApprove() {
+        Transaction original = entry(1L, TransactionType.DEPOSIT, "100.00", 1L, null, null);
+        Transaction correction = entry(2L, TransactionType.DEPOSIT, "10.00", 1L, null, 1L);
+        var decision = rules.evaluateTransferRecipientReversal(account, new BalanceRules.BalanceSummary(money("0.00"), money("0.00")), original, correction);
+        assertTrue(decision.approved());
+        assertNull(decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("rejeita correção quando destinatário já gastou o crédito e redução deixaria saldo negativo")
+    void evaluateTransferRecipientReversal_WhenReductionExceedsRecipientBalance_ShouldReject() {
+        Transaction original = entry(1L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(2L, TransactionType.TRANSFER, "10.00", 1L, 2L, 1L);
+        AccountBalance recipientAccount = new AccountBalance(2L, money("0.00"), money("1000.00"), money("500.00"));
+        var recipientSummary = new BalanceRules.BalanceSummary(money("0.00"), money("100.00"));
+
+        var decision = rules.evaluateTransferRecipientReversal(recipientAccount, recipientSummary, original, correction);
+
+        assertFalse(decision.approved());
+        assertEquals("Saldo do destinatário insuficiente para estorno da transferência", decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("aprova correção quando destinatário possui saldo suficiente para suportar a redução")
+    void evaluateTransferRecipientReversal_WhenRecipientHasEnoughBalance_ShouldApprove() {
+        Transaction original = entry(1L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(2L, TransactionType.TRANSFER, "10.00", 1L, 2L, 1L);
+        AccountBalance recipientAccount = new AccountBalance(2L, money("0.00"), money("1000.00"), money("500.00"));
+        var recipientSummary = new BalanceRules.BalanceSummary(money("95.00"), money("5.00"));
+
+        var decision = rules.evaluateTransferRecipientReversal(recipientAccount, recipientSummary, original, correction);
+
+        assertTrue(decision.approved());
+        assertNull(decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("aprova correção sem checagem de débito quando o valor para o destinatário aumenta")
+    void evaluateTransferRecipientReversal_WhenAmountIncreases_ShouldApproveWithoutBalanceCheck() {
+        Transaction original = entry(1L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(2L, TransactionType.TRANSFER, "150.00", 1L, 2L, 1L);
+        AccountBalance recipientAccount = new AccountBalance(2L, money("0.00"), money("1000.00"), money("500.00"));
+        var recipientSummary = new BalanceRules.BalanceSummary(money("0.00"), money("100.00"));
+
+        var decision = rules.evaluateTransferRecipientReversal(recipientAccount, recipientSummary, original, correction);
+
+        assertTrue(decision.approved());
+        assertNull(decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("rejeita correção quando mudança de destinatário deixa destinatário anterior com saldo negativo")
+    void evaluateTransferRecipientReversal_WhenRecipientChangesAndOldRecipientHasInsufficientBalance_ShouldReject() {
+        Transaction original = entry(1L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(2L, TransactionType.TRANSFER, "100.00", 1L, 3L, 1L);
+        AccountBalance oldRecipient = new AccountBalance(2L, money("0.00"), money("1000.00"), money("500.00"));
+        var oldRecipientSummary = new BalanceRules.BalanceSummary(money("50.00"), money("50.00"));
+
+        var decision = rules.evaluateTransferRecipientReversal(oldRecipient, oldRecipientSummary, original, correction);
+
+        assertFalse(decision.approved());
+        assertEquals("Saldo do destinatário insuficiente para estorno da transferência", decision.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("aprova correção quando mudança de destinatário é suportada pelo saldo do destinatário anterior")
+    void evaluateTransferRecipientReversal_WhenRecipientChangesAndOldRecipientHasSufficientBalance_ShouldApprove() {
+        Transaction original = entry(1L, TransactionType.TRANSFER, "100.00", 1L, 2L, null);
+        Transaction correction = entry(2L, TransactionType.TRANSFER, "100.00", 1L, 3L, 1L);
+        AccountBalance oldRecipient = new AccountBalance(2L, money("0.00"), money("1000.00"), money("500.00"));
+        var oldRecipientSummary = new BalanceRules.BalanceSummary(money("100.00"), money("0.00"));
+
+        var decision = rules.evaluateTransferRecipientReversal(oldRecipient, oldRecipientSummary, original, correction);
+
+        assertTrue(decision.approved());
+        assertNull(decision.rejectionReason());
+    }
+
     private Transaction entry(Long id, TransactionType type, String amount, Long origin,
                               Long destination, Long originalId) {
         return new Transaction(id, type, money(amount),
