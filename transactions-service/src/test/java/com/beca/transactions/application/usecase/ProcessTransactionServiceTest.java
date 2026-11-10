@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -307,6 +308,140 @@ class ProcessTransactionServiceTest {
         assertRejection(candidate, reason);
         verifyNoInteractions(accountLock);
         verify(transactions, never()).findApprovedByOriginUserId(any());
+    }
+
+    @Test
+    @DisplayName("rejeita correção de transferência quando destinatário já gastou o valor e bloqueia ambas as contas")
+    void testTransferCorrection_WhenRecipientHasInsufficientBalance_ShouldRejectAndLockBoth() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"), null,
+                1L, 2L, TransactionStatus.APPROVED, null, null, "Transferência original", CREATION_DATE);
+        Transaction candidate = new Transaction(null, TransactionType.TRANSFER, money("10.00"), null,
+                1L, 2L, TransactionStatus.APPROVED, null, 42L, "Correção", CREATION_DATE, List.of(), "Valor incorreto");
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+        AccountBalance recipientAccount = new AccountBalance(2L, money("0.00"), money("800.00"), money("500.00"));
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(original));
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any())).thenReturn(List.of(original));
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of());
+
+        // recipient has a purchase of 100 and incoming transfer of 100, leaving effective balance = 0
+        Transaction purchase = new Transaction(100L, TransactionType.PURCHASE, money("100.00"), "Alimentação",
+                2L, null, TransactionStatus.APPROVED, null, null, "Compra", CREATION_DATE);
+        when(transactions.findApprovedByOriginUserId(2L)).thenReturn(List.of(purchase));
+        when(transactions.findApprovedIncomingTransfersByUserId(2L)).thenReturn(List.of(original));
+        when(transactions.save(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        Transaction result = processor.process(candidate, senderAccount, recipientAccount, null);
+
+        // then
+        assertEquals(TransactionStatus.REJECTED, result.getStatus());
+        assertEquals("Saldo do destinatário insuficiente para estorno da transferência", result.getRejectionReason());
+
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(accountLock).lockForUser(2L);
+        order.verify(transactions, atLeastOnce()).findById(42L);
+    }
+
+    @Test
+    @DisplayName("aprova correção de transferência quando destinatário possui saldo e bloqueia ambas as contas")
+    void testTransferCorrection_WhenRecipientHasSufficientBalance_ShouldApproveAndLockBoth() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"), null,
+                1L, 2L, TransactionStatus.APPROVED, null, null, "Transferência original", CREATION_DATE);
+        Transaction candidate = new Transaction(null, TransactionType.TRANSFER, money("10.00"), null,
+                1L, 2L, TransactionStatus.APPROVED, null, 42L, "Correção", CREATION_DATE, List.of(), "Valor incorreto");
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+        AccountBalance recipientAccount = new AccountBalance(2L, money("50.00"), money("800.00"), money("500.00"));
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(original));
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any())).thenReturn(List.of(original));
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of());
+
+        // recipient has opening 50 + incoming 100 = 150 effective balance, can absorb 90 reduction
+        when(transactions.findApprovedByOriginUserId(2L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(2L)).thenReturn(List.of(original));
+        when(transactions.save(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        Transaction result = processor.process(candidate, senderAccount, recipientAccount, null);
+
+        // then
+        assertEquals(TransactionStatus.APPROVED, result.getStatus());
+        assertNull(result.getRejectionReason());
+
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(accountLock).lockForUser(2L);
+        order.verify(transactions, atLeastOnce()).findById(42L);
+    }
+
+    @Test
+    @DisplayName("bloqueia remetente, destinatário original e novo destinatário ao corrigir mudando o destino")
+    void testTransferCorrection_WhenChangingRecipient_ShouldLockAllThree() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"), null,
+                1L, 2L, TransactionStatus.APPROVED, null, null, "Transferência original", CREATION_DATE);
+        Transaction candidate = new Transaction(null, TransactionType.TRANSFER, money("100.00"), null,
+                1L, 3L, TransactionStatus.APPROVED, null, 42L, "Correção", CREATION_DATE, List.of(), "Destinatário errado");
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+        AccountBalance oldRecipientAccount = new AccountBalance(2L, money("100.00"), money("800.00"), money("500.00"));
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of(original));
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(1L), any(), any())).thenReturn(List.of(original));
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of());
+
+        when(transactions.findApprovedByOriginUserId(2L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(2L)).thenReturn(List.of(original));
+        when(transactions.save(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        Transaction result = processor.process(candidate, senderAccount, oldRecipientAccount, null);
+
+        // then
+        assertEquals(TransactionStatus.APPROVED, result.getStatus());
+
+        InOrder order = inOrder(accountLock, transactions);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(accountLock).lockForUser(2L);
+        order.verify(accountLock).lockForUser(3L);
+        order.verify(transactions, atLeastOnce()).findById(42L);
+    }
+
+    @Test
+    @DisplayName("bloqueia em ordem crescente mesmo quando o remetente possui ID maior que o destinatário")
+    void testTransferCorrection_WhenSenderHasHigherIdThanRecipient_ShouldLockInAscendingOrder() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"), null,
+                2L, 1L, TransactionStatus.APPROVED, null, null, "Transferência original", CREATION_DATE);
+        Transaction candidate = new Transaction(null, TransactionType.TRANSFER, money("10.00"), null,
+                2L, 1L, TransactionStatus.APPROVED, null, 42L, "Correção", CREATION_DATE, List.of(), "Valor incorreto");
+        AccountBalance senderAccount = new AccountBalance(2L, money("1000.00"), money("800.00"), money("500.00"));
+        AccountBalance recipientAccount = account("50.00", "800.00", "500.00");
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(transactions.findApprovedByOriginUserId(2L)).thenReturn(List.of(original));
+        when(transactions.findApprovedOutflowsByOriginUserIdBetween(eq(2L), any(), any())).thenReturn(List.of(original));
+        when(transactions.findApprovedIncomingTransfersByUserId(2L)).thenReturn(List.of());
+
+        when(transactions.findApprovedByOriginUserId(1L)).thenReturn(List.of());
+        when(transactions.findApprovedIncomingTransfersByUserId(1L)).thenReturn(List.of(original));
+        when(transactions.save(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        Transaction result = processor.process(candidate, senderAccount, recipientAccount, null);
+
+        // then
+        assertEquals(TransactionStatus.APPROVED, result.getStatus());
+
+        InOrder order = inOrder(accountLock);
+        order.verify(accountLock).lockForUser(1L);
+        order.verify(accountLock).lockForUser(2L);
     }
 
     private Transaction candidate(TransactionType type, String amount) {

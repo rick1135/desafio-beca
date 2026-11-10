@@ -7,6 +7,7 @@ import com.beca.transactions.domain.model.TransactionStatus;
 import com.beca.transactions.domain.model.TransactionType;
 import com.beca.transactions.domain.port.AccountBalancePort;
 import com.beca.transactions.domain.port.ExchangeRatePort;
+import com.beca.transactions.domain.port.UserLookupPort;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -38,8 +40,10 @@ class CreateTransactionConcurrencyTest {
     private static final Long USER_ID = 1L;
 
     @Autowired private CreateTransactionService service;
+    @Autowired private GetBalanceService balanceService;
     @Autowired private JdbcTemplate jdbcTemplate;
     @MockitoBean private AccountBalancePort accounts;
+    @MockitoBean private UserLookupPort users;
     @MockitoBean private ExchangeRatePort exchangeRates;
     @MockitoSpyBean private TransactionPersistenceAdapter transactions;
 
@@ -82,6 +86,61 @@ class CreateTransactionConcurrencyTest {
             assertEquals(1, java.util.stream.Stream.of(resultado1, resultado2)
                     .filter(t -> t.getStatus() == TransactionStatus.REJECTED
                             && "Saldo insuficiente".equals(t.getRejectionReason())).count());
+        } finally {
+            jdbcTemplate.update("DELETE FROM transactions");
+        }
+    }
+
+    @Test
+    void deveSerializarCorrecaoDeTransferenciaEGastoConcorrenteSemSaldoNegativo() throws Exception {
+        jdbcTemplate.update("DELETE FROM transactions");
+        Long senderId = 1L;
+        Long recipientId = 2L;
+
+        when(users.existsById(recipientId)).thenReturn(true);
+        when(accounts.findByUserId(senderId)).thenReturn(Optional.of(new AccountBalance(
+                senderId, new BigDecimal("1000.00"), new BigDecimal("1000.00"), new BigDecimal("1000.00")
+        )));
+        when(accounts.findByUserId(recipientId)).thenReturn(Optional.of(new AccountBalance(
+                recipientId, new BigDecimal("0.00"), new BigDecimal("1000.00"), new BigDecimal("1000.00")
+        )));
+
+        // 1. Remetente transfere 100 para destinatário (que parte do saldo 0)
+        Transaction transfer = service.create(senderId, TransactionType.TRANSFER, new BigDecimal("100.00"),
+                "Transferência inicial", null, recipientId, null);
+        assertEquals(TransactionStatus.APPROVED, transfer.getStatus());
+        assertEquals(0, new BigDecimal("100.00").compareTo(balanceService.getBalance(recipientId).effectiveBalance()));
+
+        CountDownLatch inicio = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            // Thread A: Destinatário tenta gastar os 100
+            var gasto = executor.submit(() -> {
+                inicio.await();
+                return service.create(recipientId, TransactionType.PURCHASE, new BigDecimal("100.00"),
+                        "Compra concorrente", "Alimentação", null, null);
+            });
+
+            // Thread B: Remetente tenta corrigir a transferência para 10 (reduzindo 90 do destinatário)
+            var correcao = executor.submit(() -> {
+                inicio.await();
+                return service.create(senderId, TransactionType.TRANSFER, new BigDecimal("10.00"),
+                        "Correção concorrente", null, recipientId, transfer.getId(), "Errei valor");
+            });
+
+            inicio.countDown();
+            Transaction resGasto = gasto.get(10, TimeUnit.SECONDS);
+            Transaction resCorrecao = correcao.get(10, TimeUnit.SECONDS);
+
+            // Exatamente uma é aprovada e a outra é rejeitada por saldo insuficiente
+            assertEquals(1, java.util.stream.Stream.of(resGasto, resCorrecao)
+                    .filter(t -> t.getStatus() == TransactionStatus.APPROVED).count());
+            assertEquals(1, java.util.stream.Stream.of(resGasto, resCorrecao)
+                    .filter(t -> t.getStatus() == TransactionStatus.REJECTED).count());
+
+            // INVARIANTE CRÍTICA: o saldo do destinatário NUNCA é negativo
+            BigDecimal saldoFinal = balanceService.getBalance(recipientId).effectiveBalance();
+            assertTrue(saldoFinal.signum() >= 0, "Saldo do destinatário não pode ficar negativo, atual: " + saldoFinal);
         } finally {
             jdbcTemplate.update("DELETE FROM transactions");
         }

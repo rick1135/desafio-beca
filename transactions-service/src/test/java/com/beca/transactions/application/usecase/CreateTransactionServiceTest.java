@@ -386,6 +386,79 @@ class CreateTransactionServiceTest {
         verifyNoInteractions(accounts, users, processor);
     }
 
+    @Test
+    @DisplayName("consulta conta do destinatário e do remetente quando correção de transferência reduz o valor")
+    void testTransferCorrection_WhenReducingAmount_ShouldLookupRecipientAccount() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                "Transferência original", Instant.parse("2026-11-06T12:00:00Z"));
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+        AccountBalance recipientAccount = new AccountBalance(2L, money("50.00"), money("800.00"), money("500.00"));
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(users.existsById(2L)).thenReturn(true);
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(senderAccount));
+        when(accounts.findByUserId(2L)).thenReturn(Optional.of(recipientAccount));
+
+        // when
+        service.create(1L, TransactionType.TRANSFER, money("10.00"),
+                "Correção para 10", null, 2L, 42L, "Errei o valor");
+
+        // then
+        verify(accounts).findByUserId(1L);
+        verify(accounts).findByUserId(2L);
+        ArgumentCaptor<Transaction> candidateCaptor = ArgumentCaptor.forClass(Transaction.class);
+        verify(processor).process(candidateCaptor.capture(), same(senderAccount), same(recipientAccount), isNull());
+        assertEquals(42L, candidateCaptor.getValue().getOriginalTransactionId());
+    }
+
+    @Test
+    @DisplayName("delega rejeição quando MockAPI do destinatário falha na correção de transferência")
+    void testTransferCorrection_WhenRecipientMockApiFails_ShouldDelegateRejection() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                "Transferência original", Instant.parse("2026-11-06T12:00:00Z"));
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(users.existsById(2L)).thenReturn(true);
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(senderAccount));
+        when(accounts.findByUserId(2L)).thenThrow(new ExternalServiceUnavailableException("MockAPI", new RuntimeException("timeout")));
+
+        // when
+        service.create(1L, TransactionType.TRANSFER, money("10.00"),
+                "Correção para 10", null, 2L, 42L, "Errei o valor");
+
+        // then
+        verify(processor).process(any(Transaction.class), same(senderAccount),
+                eq("Serviço externo de consulta de saldo e limites temporariamente indisponível"));
+    }
+
+    @Test
+    @DisplayName("não consulta MockAPI do destinatário quando correção aumenta o valor da transferência")
+    void testTransferCorrection_WhenIncreasingAmount_ShouldNotLookupRecipientAccount() {
+        // given
+        Transaction original = new Transaction(42L, TransactionType.TRANSFER, money("100.00"),
+                null, 1L, 2L, TransactionStatus.APPROVED, null, null,
+                "Transferência original", Instant.parse("2026-11-06T12:00:00Z"));
+        AccountBalance senderAccount = account("1000.00", "800.00", "500.00");
+
+        when(transactions.findById(42L)).thenReturn(Optional.of(original));
+        when(users.existsById(2L)).thenReturn(true);
+        when(accounts.findByUserId(1L)).thenReturn(Optional.of(senderAccount));
+
+        // when
+        service.create(1L, TransactionType.TRANSFER, money("150.00"),
+                "Correção para 150", null, 2L, 42L, "Aumentar valor");
+
+        // then
+        verify(accounts).findByUserId(1L);
+        verify(accounts, never()).findByUserId(2L);
+        verify(processor).process(any(Transaction.class), same(senderAccount), isNull());
+    }
+
     private AccountBalance account(String balance, String daily, String perTransaction) {
         return new AccountBalance(1L, money(balance), money(daily), money(perTransaction));
     }
