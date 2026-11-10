@@ -110,7 +110,9 @@ public class UserController {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = ApiErrorResponse.class)))
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> getUserById(
+            @Parameter(description = "Identificador único do usuário", example = "1")
+            @PathVariable Long id) {
         User user = getUserByIdUseCase.getUserById(id);
         return ResponseEntity.ok(toResponse(user));
     }
@@ -128,7 +130,10 @@ public class UserController {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = ApiErrorResponse.class)))
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponse> update(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
+    public ResponseEntity<UserResponse> update(
+            @Parameter(description = "Identificador único do usuário", example = "1")
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserRequest request) {
         User user = updateUserUseCase.update(
                 id,
                 request.name(),
@@ -144,7 +149,9 @@ public class UserController {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = ApiErrorResponse.class)))
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUserById(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUserById(
+            @Parameter(description = "Identificador único do usuário", example = "1")
+            @PathVariable Long id) {
         deleteUserUseCase.delete(id);
         return ResponseEntity.noContent().build();
     }

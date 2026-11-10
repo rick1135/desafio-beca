@@ -6,8 +6,6 @@ import com.beca.userservice.adapter.in.web.dto.ValidateCredentialsRequest;
 import com.beca.userservice.application.usecase.AuthenticateUserService;
 import com.beca.userservice.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,13 +32,6 @@ public class AuthenticationController {
             summary = "Validar credenciais de usuário",
             description = "Endpoint interno utilizado pelo transactions-service (MS2) para autenticação HTTP Basic. Exige o cabeçalho X-Internal-Auth-Key.",
             security = @SecurityRequirement(name = OpenApiConfig.INTERNAL_AUTH_SCHEME)
-    )
-    @Parameter(
-            name = "X-Internal-Auth-Key",
-            in = ParameterIn.HEADER,
-            description = "Chave secreta para comunicação interna entre microsserviços",
-            required = true,
-            schema = @Schema(type = "string", example = "chave-secreta-interna")
     )
     @ApiResponse(
             responseCode = "200",
