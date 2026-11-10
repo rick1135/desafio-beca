@@ -6,3 +6,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  override-with-generic-response: false
