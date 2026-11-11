@@ -71,17 +71,9 @@ public class ExpenseController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "Data final no formato ISO (YYYY-MM-DD)", example = "2026-11-30")
             @RequestParam(name = "endDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @Parameter(description = "Data inicial (alias em português)", example = "2026-11-01")
-            @RequestParam(name = "dataInicio", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
-            @Parameter(description = "Data final (alias em português)", example = "2026-11-30")
-            @RequestParam(name = "dataFim", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        LocalDate effectiveStartDate = startDate != null ? startDate : dataInicio;
-        LocalDate effectiveEndDate = endDate != null ? endDate : dataFim;
-        var summary = expenses.getExpenses(user.id(), effectiveStartDate, effectiveEndDate);
+        var summary = expenses.getExpenses(user.id(), startDate, endDate);
         return ResponseEntity.ok(ExpensesByCategoryResponse.from(summary));
     }
 
@@ -115,17 +107,9 @@ public class ExpenseController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "Data final no formato ISO (YYYY-MM-DD)", example = "2026-11-30")
             @RequestParam(name = "endDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @Parameter(description = "Data inicial (alias em português)", example = "2026-11-01")
-            @RequestParam(name = "dataInicio", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
-            @Parameter(description = "Data final (alias em português)", example = "2026-11-30")
-            @RequestParam(name = "dataFim", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        LocalDate effectiveStartDate = startDate != null ? startDate : dataInicio;
-        LocalDate effectiveEndDate = endDate != null ? endDate : dataFim;
-        ExpenseSeries result = expenseSeries.daily(user.id(), effectiveStartDate, effectiveEndDate);
+        ExpenseSeries result = expenseSeries.daily(user.id(), startDate, endDate);
         return ResponseEntity.ok(ExpenseSeriesResponse.from(result));
     }
 
@@ -159,17 +143,9 @@ public class ExpenseController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "Data final no formato ISO (YYYY-MM-DD)", example = "2026-12-31")
             @RequestParam(name = "endDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @Parameter(description = "Data inicial (alias em português)", example = "2026-01-01")
-            @RequestParam(name = "dataInicio", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
-            @Parameter(description = "Data final (alias em português)", example = "2026-12-31")
-            @RequestParam(name = "dataFim", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        LocalDate effectiveStartDate = startDate != null ? startDate : dataInicio;
-        LocalDate effectiveEndDate = endDate != null ? endDate : dataFim;
-        ExpenseSeries result = expenseSeries.monthly(user.id(), effectiveStartDate, effectiveEndDate);
+        ExpenseSeries result = expenseSeries.monthly(user.id(), startDate, endDate);
         return ResponseEntity.ok(ExpenseSeriesResponse.from(result));
     }
 }

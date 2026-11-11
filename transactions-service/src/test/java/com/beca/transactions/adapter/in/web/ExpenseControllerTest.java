@@ -117,8 +117,8 @@ class ExpenseControllerTest {
     }
 
     @Test
-    @DisplayName("deve retornar série diária para o usuário autenticado com aliases de data")
-    void returnsDailySeriesForAuthenticatedUserUsingDateAliases() throws Exception {
+    @DisplayName("deve retornar série diária para o usuário autenticado com filtros de data")
+    void returnsDailySeriesForAuthenticatedUserUsingDateFilters() throws Exception {
         // given
         given(authPort.authenticate("ana@example.com", "Senha123"))
                 .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
@@ -130,8 +130,8 @@ class ExpenseControllerTest {
         // when / then
         mvc.perform(get("/expenses/daily")
                         .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123"))
-                        .param("dataInicio", date.toString())
-                        .param("dataFim", date.toString()))
+                        .param("startDate", date.toString())
+                        .param("endDate", date.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currency").value("BRL"))
                 .andExpect(jsonPath("$.total").value(50))
