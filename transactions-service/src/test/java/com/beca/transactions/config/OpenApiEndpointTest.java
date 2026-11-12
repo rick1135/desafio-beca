@@ -5,6 +5,7 @@ import com.beca.transactions.application.usecase.GetBalanceService;
 import com.beca.transactions.application.usecase.GetExpenseSeriesService;
 import com.beca.transactions.application.usecase.GetExpensesByCategoryService;
 import com.beca.transactions.application.usecase.GetTransactionService;
+import com.beca.transactions.application.usecase.TransactionReportService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +60,9 @@ class OpenApiEndpointTest {
     @MockitoBean
     private GetExpenseSeriesService getExpenseSeriesService;
 
+    @MockitoBean
+    private TransactionReportService transactionReportService;
+
     @Test
     @DisplayName("deve expor a documentação OpenAPI em /v3/api-docs sem exigir autenticação")
     void exposesOpenApiDocumentationPublicly() throws Exception {
@@ -72,6 +76,7 @@ class OpenApiEndpointTest {
                 .andExpect(jsonPath("$.paths['/expenses/by-category']").exists())
                 .andExpect(jsonPath("$.paths['/expenses/daily']").exists())
                 .andExpect(jsonPath("$.paths['/expenses/monthly']").exists())
+                .andExpect(jsonPath("$.paths['/reports/transactions/csv']").exists())
                 .andExpect(jsonPath("$.components.securitySchemes.basicAuth").exists())
                 .andExpect(jsonPath("$.components.schemas.CreateTransactionRequest.properties.type.example")
                         .value("PURCHASE"))
@@ -89,7 +94,7 @@ class OpenApiEndpointTest {
                 .andExpect(jsonPath("$.paths['/transactions'].get.responses['400']").exists())
                 .andExpect(jsonPath("$.paths['/balance'].get.responses['404']").exists())
                 .andExpect(jsonPath("$.paths.*.*.responses['503'].description",
-                        hasSize(8)))
+                        hasSize(9)))
                 .andExpect(jsonPath("$.components.schemas.ExpensePointResponse.properties.period.example")
                         .doesNotExist());
     }
