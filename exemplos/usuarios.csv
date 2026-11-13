@@ -1,0 +1,8 @@
+nome,cpf,email,senha
+Ana Silva,12345678901,ana.silva@email.com,Senha@123
+Bruno Costa,23456789012,bruno.costa@email.com,Senha@123
+Carlos Erro CPF,12345,carlos.erro@email.com,Senha@123
+Carla Souza,34567890123,carla.souza@email.com,Senha@123
+Eduardo Email Invalido,56789012345,eduardo.sem.arroba,Senha@123
+Daniel Pereira,45678901234,daniel.pereira@email.com,Senha@123
+Lucas Email Duplicado,67890123456,ana.silva@email.com,Senha@123
