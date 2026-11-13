@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -72,8 +73,8 @@ class TransactionReportServiceTest {
         // then
         assertTrue(csv.contains("Compra Início Novembro"));
         assertTrue(csv.contains("Saque Fim Novembro"));
-        assertTrue(!csv.contains("Compra Outubro"));
-        assertTrue(!csv.contains("Compra Dezembro"));
+        assertFalse(csv.contains("Compra Outubro"));
+        assertFalse(csv.contains("Compra Dezembro"));
     }
 
     @Test
@@ -96,8 +97,8 @@ class TransactionReportServiceTest {
 
         // then
         assertTrue(csv.contains("Dentro do período"));
-        assertTrue(!csv.contains("Antes do período"));
-        assertTrue(!csv.contains("Depois do período"));
+        assertFalse(csv.contains("Antes do período"));
+        assertFalse(csv.contains("Depois do período"));
     }
 
     @Test
@@ -113,6 +114,93 @@ class TransactionReportServiceTest {
                 () -> service.generateCsvReport(userId, start, end));
         assertEquals("A data inicial deve ser anterior ou igual à data final.", ex.getMessage());
         verifyNoInteractions(transactions);
+    }
+
+    @Test
+    @DisplayName("deve lançar InvalidTransactionException quando apenas dataInicial for fornecida")
+    void whenOnlyStartDateProvided_shouldThrowInvalidTransactionException() {
+        // given
+        Long userId = 1L;
+        LocalDate start = LocalDate.parse("2026-11-01");
+
+        // when / then
+        InvalidTransactionException ex = assertThrows(InvalidTransactionException.class,
+                () -> service.generateCsvReport(userId, start, null));
+        assertEquals("Para filtrar por período, informe a data inicial e a data final.", ex.getMessage());
+        verifyNoInteractions(transactions);
+    }
+
+    @Test
+    @DisplayName("deve lançar InvalidTransactionException quando apenas dataFim for fornecida")
+    void whenOnlyEndDateProvided_shouldThrowInvalidTransactionException() {
+        // given
+        Long userId = 1L;
+        LocalDate end = LocalDate.parse("2026-11-30");
+
+        // when / then
+        InvalidTransactionException ex = assertThrows(InvalidTransactionException.class,
+                () -> service.generateCsvReport(userId, null, end));
+        assertEquals("Para filtrar por período, informe a data inicial e a data final.", ex.getMessage());
+        verifyNoInteractions(transactions);
+    }
+
+    @Test
+    @DisplayName("deve lançar InvalidTransactionException quando o período for superior a 1 ano")
+    void whenDateRangeExceedsOneYear_shouldThrowInvalidTransactionException() {
+        // given
+        Long userId = 1L;
+        LocalDate start = LocalDate.parse("2025-01-01");
+        LocalDate end = LocalDate.parse("2026-01-02");
+
+        // when / then
+        InvalidTransactionException ex = assertThrows(InvalidTransactionException.class,
+                () -> service.generateCsvReport(userId, start, end));
+        assertEquals("O período do relatório não pode ser superior a 1 ano.", ex.getMessage());
+        verifyNoInteractions(transactions);
+    }
+
+    @Test
+    @DisplayName("não deve gerar erro 500 nem NPE quando transação não possuir data de criação")
+    void whenTransactionHasNullCreationDate_shouldSkipWithoutThrowingException() {
+        // given
+        Long userId = 1L;
+        Transaction txWithDate = createTransaction(1L, TransactionType.PURCHASE, "50.00", "Alimentação",
+                "Com data", Instant.parse("2026-11-10T10:00:00Z"), TransactionStatus.APPROVED, null, List.of());
+        Transaction txWithoutDate = createTransaction(2L, TransactionType.PURCHASE, "30.00", "Lazer",
+                "Sem data", null, TransactionStatus.APPROVED, null, List.of());
+
+        given(transactions.findVisibleByUserId(userId)).willReturn(List.of(txWithDate, txWithoutDate));
+
+        // when
+        byte[] csvBytes = service.generateCsvReport(userId, null, null);
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        // then
+        assertTrue(csv.contains("Com data"));
+        assertFalse(csv.contains("Sem data"));
+    }
+
+    @Test
+    @DisplayName("deve neutralizar caracteres de injeção de fórmulas (=, +, -, @) com apóstrofo")
+    void whenFieldsStartWithFormulaCharacters_shouldNeutralizeWithSingleQuote() {
+        // given
+        Long userId = 1L;
+        Transaction txFormula1 = createTransaction(1L, TransactionType.PURCHASE, "10.00", "=SUM(A1:A10)",
+                "+cmd|' /C calc'!A0", Instant.parse("2026-11-10T10:00:00Z"), TransactionStatus.APPROVED, null, List.of());
+        Transaction txFormula2 = createTransaction(2L, TransactionType.PURCHASE, "20.00", "-categoria",
+                "@administrador", Instant.parse("2026-11-10T11:00:00Z"), TransactionStatus.APPROVED, null, List.of());
+
+        given(transactions.findVisibleByUserId(userId)).willReturn(List.of(txFormula1, txFormula2));
+
+        // when
+        byte[] csvBytes = service.generateCsvReport(userId, null, null);
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+
+        // then
+        assertTrue(csv.contains("'=SUM(A1:A10)"));
+        assertTrue(csv.contains("'+cmd|' /C calc'!A0"));
+        assertTrue(csv.contains("'-categoria"));
+        assertTrue(csv.contains("'@administrador"));
     }
 
     @Test

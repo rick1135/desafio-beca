@@ -97,6 +97,45 @@ class TransactionReportControllerTest {
     }
 
     @Test
+    @DisplayName("deve retornar 400 quando apenas uma das datas for informada")
+    void shouldReturnBadRequestWhenOnlyOneDateProvided() throws Exception {
+        // given
+        given(authPort.authenticate("ana@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
+
+        given(reportService.generateCsvReport(1L, LocalDate.parse("2026-11-01"), null))
+                .willThrow(new InvalidTransactionException("Para filtrar por período, informe a data inicial e a data final."));
+
+        // when / then
+        mvc.perform(get("/reports/transactions/csv")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123"))
+                        .param("dataInicio", "2026-11-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Para filtrar por período, informe a data inicial e a data final."));
+    }
+
+    @Test
+    @DisplayName("deve retornar 400 quando o período for superior a 1 ano")
+    void shouldReturnBadRequestWhenPeriodExceedsOneYear() throws Exception {
+        // given
+        given(authPort.authenticate("ana@example.com", "Senha123"))
+                .willReturn(Optional.of(new AuthenticatedUser(1L, "Ana", "ana@example.com")));
+
+        given(reportService.generateCsvReport(1L, LocalDate.parse("2025-01-01"), LocalDate.parse("2026-01-02")))
+                .willThrow(new InvalidTransactionException("O período do relatório não pode ser superior a 1 ano."));
+
+        // when / then
+        mvc.perform(get("/reports/transactions/csv")
+                        .header(HttpHeaders.AUTHORIZATION, basicAuth("ana@example.com", "Senha123"))
+                        .param("dataInicio", "2025-01-01")
+                        .param("dataFim", "2026-01-02"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("O período do relatório não pode ser superior a 1 ano."));
+    }
+
+    @Test
     @DisplayName("deve retornar 400 quando a data inicial for posterior à data final")
     void shouldReturnBadRequestWhenStartDateIsAfterEndDate() throws Exception {
         // given

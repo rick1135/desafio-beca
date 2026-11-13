@@ -47,8 +47,16 @@ public class TransactionReportService {
             endDate = currentMonth.atEndOfMonth();
         }
 
-        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+        if (startDate == null || endDate == null) {
+            throw new InvalidTransactionException("Para filtrar por período, informe a data inicial e a data final.");
+        }
+
+        if (startDate.isAfter(endDate)) {
             throw new InvalidTransactionException("A data inicial deve ser anterior ou igual à data final.");
+        }
+
+        if (startDate.plusYears(1).isBefore(endDate)) {
+            throw new InvalidTransactionException("O período do relatório não pode ser superior a 1 ano.");
         }
 
         List<Transaction> visibleTransactions = transactions.findVisibleByUserId(userId);
@@ -57,11 +65,11 @@ public class TransactionReportService {
         sb.append(UTF8_BOM).append(CSV_HEADER).append("\n");
 
         for (Transaction transaction : visibleTransactions) {
-            LocalDate transactionDate = LocalDate.ofInstant(transaction.getCreationDate(), ZONE);
-            if (startDate != null && transactionDate.isBefore(startDate)) {
+            if (transaction.getCreationDate() == null) {
                 continue;
             }
-            if (endDate != null && transactionDate.isAfter(endDate)) {
+            LocalDate transactionDate = LocalDate.ofInstant(transaction.getCreationDate(), ZONE);
+            if (transactionDate.isBefore(startDate) || transactionDate.isAfter(endDate)) {
                 continue;
             }
 
@@ -125,9 +133,14 @@ public class TransactionReportService {
         if (value == null) {
             return "";
         }
-        if (value.contains(";") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
+        String sanitized = value;
+        String trimmed = sanitized.stripLeading();
+        if (trimmed.startsWith("=") || trimmed.startsWith("+") || trimmed.startsWith("-") || trimmed.startsWith("@")) {
+            sanitized = "'" + sanitized;
         }
-        return value;
+        if (sanitized.contains(";") || sanitized.contains("\"") || sanitized.contains("\n") || sanitized.contains("\r")) {
+            return "\"" + sanitized.replace("\"", "\"\"") + "\"";
+        }
+        return sanitized;
     }
 }
